@@ -3,145 +3,321 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Dashboards H2O - Rotação</title>
+  <title>Dashboards H2O – Rotação</title>
   <style>
-    :root { --bg:#000; --fg:#fff; --muted:#9aa0a6; --glass:rgba(0,0,0,.42); }
-    *{box-sizing:border-box}
-    html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    /* SEM tarja no topo — tela 100% para o iframe */
-    #stage{position:fixed;inset:0}
-    iframe{position:absolute;inset:0;border:0;width:100%;height:100%;background:linear-gradient(180deg,#111,#000)}
+    :root {
+      --bg: #000;
+      --fg: #fff;
+      --panel: rgba(0,0,0,.55);
+      --panel-hover: rgba(0,0,0,.75);
+      --accent: #19a7ff;
+      --danger: #ff4d4f;
+    }
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      background: var(--bg); color: var(--fg);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      overflow: hidden;
+    }
+    /* Iframe ocupa a tela toda */
+    #stage {
+      position: fixed; inset: 0;
+      width: 100vw; height: 100vh; border: 0;
+      background: #111;
+    }
 
-    /* Controles visíveis no rodapé */
-    #controls{
-      position:fixed;left:50%;bottom:14px;transform:translateX(-50%);
-      display:flex;align-items:center;gap:10px;z-index:10;
-      background:var(--glass);backdrop-filter:saturate(140%) blur(6px);
-      padding:8px 12px;border-radius:12px;font-size:14px;user-select:none
+    /* Controles (auto-ocultam) */
+    #controls {
+      position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+      display: flex; gap: 10px; align-items: center;
+      background: var(--panel); border-radius: 14px; padding: 10px 12px;
+      backdrop-filter: blur(6px);
+      transition: opacity .25s ease;
     }
-    #controls button, #controls select{
-      border:0;outline:0;background:transparent;color:var(--fg);font:inherit;cursor:pointer
+    #controls.hidden { opacity: 0; pointer-events: none; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 44px; height: 44px; padding: 0 12px;
+      border-radius: 10px; border: 1px solid rgba(255,255,255,.1);
+      background: transparent; color: var(--fg); cursor: pointer; font-size: 16px;
     }
-    #controls button{
-      padding:6px 10px;border-radius:10px
+    .btn:hover { background: var(--panel-hover); }
+    .btn[data-active="true"] { outline: 2px solid var(--accent); }
+
+    select, input[type="checkbox"] {
+      background: transparent; color: var(--fg);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 10px; height: 44px; padding: 0 10px; font-size: 14px;
     }
-    #controls button:hover{background:rgba(255,255,255,.08)}
-    #controls select{
-      background:rgba(0,0,0,.25);padding:6px 26px 6px 10px;border-radius:10px;appearance:none
+    option { color: #000; }
+
+    /* Info discreta (sem barra superior) */
+    #info {
+      position: fixed; left: 16px; bottom: 16px;
+      background: var(--panel); border-radius: 10px; padding: 6px 10px;
+      font-size: 12px; opacity: .9;
     }
-    #info{opacity:.8;font-size:12px;margin-left:6px}
+    #title { font-weight: 600; }
+    #index { opacity: .8; margin-left: 6px; }
+
+    /* Indicador que pisca 3x ao carregar */
+    #ready {
+      position: fixed; right: 16px; bottom: 16px;
+      background: var(--panel); border-radius: 10px; padding: 8px 12px;
+      font-size: 12px; letter-spacing: .6px;
+      animation: blink 1s ease-in-out 3;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 0; }
+      50% { opacity: 1; }
+    }
+
+    /* Botão fullscreen discreto */
+    #fs {
+      position: fixed; right: 16px; top: 16px;
+      background: var(--panel); border-radius: 10px;
+      padding: 8px 12px; font-size: 13px; cursor: pointer;
+      border: 1px solid rgba(255,255,255,.15);
+    }
+    #fs:hover { background: var(--panel-hover); }
+
+    /* Tooltip simples */
+    .btn[title] { position: relative; }
+    .btn[title]:hover::after {
+      content: attr(title);
+      position: absolute; bottom: 52px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,.85); padding: 6px 8px; font-size: 12px;
+      border-radius: 8px; white-space: nowrap;
+    }
+
+    /* Recarregar quando erro */
+    #reloadPanel {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      background: var(--panel); padding: 14px 16px; border-radius: 12px;
+      display: none; flex-direction: column; gap: 10px; align-items: center;
+    }
+    #reloadPanel.show { display: flex; }
+    #reloadPanel p { margin: 0; font-size: 14px; opacity: .9; }
   </style>
 </head>
 <body>
-  <div id="stage"></div>
+  <!-- Iframe em tela cheia -->
+  <iframe id="stage"
+    src="about:blank"
+    allowfullscreen
+    referrerpolicy="no-referrer">
+  </iframe>
 
-  <!-- Controles -->
-  <div id="controls" aria-label="Controles de rotação">
-    <button id="prevBtn" title="Anterior (←)">◀</button>
-    <button id="toggleBtn" title="Pausar/Retomar (Espaço)">⏯</button>
-    <button id="nextBtn" title="Próximo (→)">▶</button>
-    <label style="display:flex;align-items:center;gap:6px;margin-left:8px">
-      <span style="opacity:.8">Tempo</span>
-      <select id="intervalSel" title="Intervalo entre trocas">
-        <option value="30000">30s</option>
-        <option value="45000">45s</option>
-        <option value="60000" selected>60s</option>
-        <option value="90000">90s</option>
-        <option value="120000">120s</option>
+  <!-- Controles inferiores (auto-ocultam) -->
+  <div id="controls" class="hidden" role="group" aria-label="Controles de rotação">
+    <button class="btn" id="prev" title="Anterior (←)">⏮️</button>
+    <button class="btn" id="play" title="Reproduzir/Pausar (Espaço)">⏯</button>
+    <button class="btn" id="next" title="Próximo (→)">⏭️</button>
+
+    <label style="margin-left:8px;font-size:13px;opacity:.85;">Intervalo:
+      <select id="interval">
+        <option value="30000">30 s</option>
+        <option value="45000">45 s</option>
+        <option value="60000" selected>60 s</option>
+        <option value="90000">90 s</option>
+        <option value="120000">120 s</option>
       </select>
     </label>
-    <span id="info"></span>
+
+    <label class="btn" style="gap:8px;">
+      <input type="checkbox" id="shuffle" />
+      🔀 Shuffle
+    </label>
+
+    <label class="btn" style="gap:8px;">
+      <input type="checkbox" id="showTitle" />
+      🏷️ Título
+    </label>
+  </div>
+
+  <!-- Info discreta (sem tarja) -->
+  <div id="info" style="display:none;">
+    <span id="title"></span><span id="index"></span>
+  </div>
+
+  <!-- Fullscreen -->
+  <button id="fs" type="button">⤢ Tela cheia</button>
+
+  <!-- Indicador que pisca 3x -->
+  <div id="ready">PRONTO</div>
+
+  <!-- Painel de recarregar quando iframe não carrega -->
+  <div id="reloadPanel">
+    <p>Não carregou? Pode ser rede lenta.</p>
+    <button class="btn" id="reloadBtn">Recarregar</button>
   </div>
 
   <script>
-    // ====== CONFIG ======
-    const dashboards = [
-      "https://docs.google.com/spreadsheets/d/e/2PACX-1vQabryl5zw9NO6AkZT4MIv3ZVzN33M4taW_VoIDRyouzS1bKUhSHjFu9hkTGIInpJdn5zXJbJiPm3OK/pubhtml?gid=915060596&single=true&widget=true&headers=false",
-      "https://docs.google.com/spreadsheets/d/e/2PACX-1vR24Vx4SCLyGxtnD8X0tYOnBIZJ_Y10BYhYwaESp2Sui60TTEgC13hvPO8vKNtiMYp35L-A9LcGNmHB/pubhtml?gid=74611085&single=true&widget=true&headers=false",
-      "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRiAUmq-3rdKt0gdiiH2U0c06Lum3hx44s5dMYLFKQLEzbnv7gCh65WkKWtu1SEwnoGRHOcTynIMnw/pubhtml?gid=915060596&single=true&widget=true&headers=false"
+    /* ========= LISTA DE DASHBOARDS =========
+       Para adicionar novos: cole outro objeto { url: "...", label: "..." }.
+       Dica: mantenha ?single=true&widget=true&headers=false para visual limpo.
+    */
+    const DASHBOARDS = [
+      {
+        url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSjeawtzSzsgSLYLPzN7e3LB2oGabZGeBkt2bg2fTh9Y3Nw0-bUOlskNxEtCooKxxAD7L678Hn3iDJZ/pubhtml?gid=1329123289&single=true&widget=true&headers=false",
+        label: "Planilha (gid 1329123289)"
+      },
+
+      // Exemplo: acrescente os demais que já tens:
+      // { url: "https://docs.google.com/spreadsheets/d/e/SEU_ID/pubhtml?gid=XXXX&single=true&widget=true&headers=false", label: "CRM – Comercial" },
+      // { url: "https://docs.google.com/spreadsheets/d/e/OUTRO_ID/pubhtml?gid=YYYY&single=true&widget=true&headers=false", label: "Rotas – Coleta" },
     ];
-    // ====== FIM CONFIG ======
 
-    const qs = new URLSearchParams(location.search);
+    /* ======== ESTADO / CONFIG ======== */
+    const ls = {
+      get(k, d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d } catch(e){ return d } },
+      set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)) } catch(e){} }
+    };
+    const KEY = "visao_comercial_rotacao_v3";
+    const cfg = Object.assign({
+      interval: 60000, shuffle: false, showTitle: false, index: 0, playing: true
+    }, ls.get(KEY, {}));
+
     const stage = document.getElementById("stage");
-    const prevBtn = document.getElementById("prevBtn");
-    const nextBtn = document.getElementById("nextBtn");
-    const toggleBtn = document.getElementById("toggleBtn");
-    const intervalSel = document.getElementById("intervalSel");
-    const infoEl = document.getElementById("info");
+    const ctrl  = document.getElementById("controls");
+    const btnPrev = document.getElementById("prev");
+    const btnPlay = document.getElementById("play");
+    const btnNext = document.getElementById("next");
+    const selInt  = document.getElementById("interval");
+    const chkShuf = document.getElementById("shuffle");
+    const chkTitle= document.getElementById("showTitle");
+    const infoBox = document.getElementById("info");
+    const titleEl = document.getElementById("title");
+    const indexEl = document.getElementById("index");
+    const fsBtn   = document.getElementById("fs");
+    const reloadPanel = document.getElementById("reloadPanel");
+    const reloadBtn   = document.getElementById("reloadBtn");
 
-    // permite definir tempo pela URL, ex.: ?t=90
-    const qsSeconds = parseInt(qs.get("t"),10);
-    if (!isNaN(qsSeconds)) {
-      const ms = Math.max(5, qsSeconds) * 1000;
-      [...intervalSel.options].forEach(o => o.selected = (+o.value === ms));
+    selInt.value = String(cfg.interval);
+    chkShuf.checked = !!cfg.shuffle;
+    chkTitle.checked = !!cfg.showTitle;
+
+    let timer = null;
+    let hideTimer = null;
+    let loadGuard = null; // para exibir "recarregar" se demorar demais
+
+    function save(){ ls.set(KEY, cfg); }
+
+    /* ======== PLAYLIST ======== */
+    function setIndex(i){
+      cfg.index = (i + DASHBOARDS.length) % DASHBOARDS.length;
+      save(); render();
     }
-
-    let idx = -1, timer = null, currentFrame = null, paused = false;
-
-    function updateInfo(){
-      infoEl.textContent = ` ${idx+1}/${dashboards.length} ${paused ? "— pausado" : ""}`;
-    }
-
-    function loadDashboard(i){
-      const src = dashboards[i];
-      const iframe = document.createElement("iframe");
-      iframe.referrerPolicy = "no-referrer";
-      iframe.loading = "eager";
-      iframe.src = src;
-
-      if (currentFrame) stage.removeChild(currentFrame);
-      stage.appendChild(iframe);
-      currentFrame = iframe;
-      updateInfo();
-    }
-
     function next(){
-      idx = (idx + 1) % dashboards.length;
-      loadDashboard(idx);
+      if (cfg.shuffle){
+        let n;
+        do { n = Math.floor(Math.random()*DASHBOARDS.length); } while (n===cfg.index && DASHBOARDS.length>1);
+        setIndex(n);
+      } else {
+        setIndex(cfg.index+1);
+      }
     }
-    function prev(){
-      idx = (idx - 1 + dashboards.length) % dashboards.length;
-      loadDashboard(idx);
+    function prev(){ setIndex(cfg.index-1); }
+
+    function render(){
+      const item = DASHBOARDS[cfg.index];
+      // atualiza info discreta
+      titleEl.textContent = item.label || "";
+      indexEl.textContent = ` · ${cfg.index+1}/${DASHBOARDS.length}`;
+      infoBox.style.display = chkTitle.checked || cfg.showTitle ? "block" : "none";
+
+      // carrega iframe
+      clearTimeout(loadGuard);
+      reloadPanel.classList.remove("show");
+      stage.src = "about:blank"; // limpa antes para evitar resíduos
+      // pequena demora para evitar 'about:blank' estourar histórico
+      setTimeout(()=>{
+        stage.src = item.url;
+        // se em 12s não carregar, sugere recarregar
+        loadGuard = setTimeout(()=> reloadPanel.classList.add("show"), 12000);
+      }, 50);
+
+      // reinicia rotação se estiver tocando
+      if (cfg.playing) start();
+      updatePlayBtn();
     }
 
-    function getIntervalMs(){ return parseInt(intervalSel.value, 10) || 60000; }
-
-    function startTimer(){
-      clearInterval(timer);
-      timer = setInterval(next, getIntervalMs());
+    function start(){
+      stop();
+      timer = setTimeout(next, cfg.interval);
     }
-
-    function pause(){
-      paused = true; clearInterval(timer); updateInfo();
-      toggleBtn.textContent = "▶"; toggleBtn.title = "Retomar (Espaço)";
+    function stop(){
+      if (timer){ clearTimeout(timer); timer = null; }
     }
-    function resume(){
-      paused = false; updateInfo(); startTimer();
-      toggleBtn.textContent = "⏸"; toggleBtn.title = "Pausar (Espaço)";
+    function togglePlay(){
+      cfg.playing = !cfg.playing; save();
+      if (cfg.playing) start(); else stop();
+      updatePlayBtn();
     }
-    function toggle(){ paused ? resume() : pause(); }
+    function updatePlayBtn(){
+      btnPlay.textContent = cfg.playing ? "⏸" : "⏵";
+      btnPlay.title = cfg.playing ? "Pausar (Espaço)" : "Reproduzir (Espaço)";
+    }
 
     // Controles
-    nextBtn.onclick = () => { next(); if (!paused) startTimer(); };
-    prevBtn.onclick = () => { prev(); if (!paused) startTimer(); };
-    toggleBtn.onclick = toggle;
-    intervalSel.onchange = () => { if (!paused) startTimer(); };
+    btnPrev.onclick = ()=>{ prev(); };
+    btnNext.onclick = ()=>{ next(); };
+    btnPlay.onclick = ()=>{ togglePlay(); };
 
-    // Atalhos de teclado
-    document.addEventListener("keydown", (e) => {
-      if (e.code === "Space"){ e.preventDefault(); toggle(); }
-      if (e.code === "ArrowRight"){ next(); if (!paused) startTimer(); }
-      if (e.code === "ArrowLeft"){ prev(); if (!paused) startTimer(); }
+    selInt.onchange = ()=>{
+      cfg.interval = parseInt(selInt.value,10) || 60000; save();
+      if (cfg.playing) start();
+    };
+    chkShuf.onchange = ()=>{ cfg.shuffle = chkShuf.checked; save(); };
+    chkTitle.onchange = ()=>{ cfg.showTitle = chkTitle.checked; save(); render(); };
+
+    // Fullscreen
+    fsBtn.onclick = ()=>{
+      const el = document.documentElement;
+      if (!document.fullscreenElement) el.requestFullscreen?.();
+      else document.exitFullscreen?.();
+    };
+
+    // Recarregar se travar
+    reloadBtn.onclick = ()=>{
+      reloadPanel.classList.remove("show");
+      render();
+    };
+
+    // Auto-ocultar controles (mostra ao mover mouse)
+    function showControls(){
+      ctrl.classList.remove("hidden");
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(()=> ctrl.classList.add("hidden"), 4000);
+    }
+    document.addEventListener("mousemove", showControls);
+    document.addEventListener("keydown", (e)=>{
+      showControls();
+      if (e.code === "Space"){ e.preventDefault(); togglePlay(); }
+      else if (e.key === "ArrowRight"){ e.preventDefault(); next(); }
+      else if (e.key === "ArrowLeft"){ e.preventDefault(); prev(); }
     });
 
-    // Init
-    if (dashboards.length){
-      next();            // carrega o primeiro
-      resume();          // inicia rotação e deixa botão como "⏸"
-    } else {
-      infoEl.textContent = "Sem dashboards configurados";
-    }
+    // Params opcionais: ?interval=60000&shuffle=1&title=1&start=2
+    (function params(){
+      const u = new URL(location.href);
+      const p = u.searchParams;
+      if (p.has("interval")) { cfg.interval = Math.max(5000, parseInt(p.get("interval"),10)||60000); selInt.value = String(cfg.interval); }
+      if (p.has("shuffle"))  { cfg.shuffle  = p.get("shuffle") === "1"; chkShuf.checked = cfg.shuffle; }
+      if (p.has("title"))    { cfg.showTitle = p.get("title") === "1"; chkTitle.checked = cfg.showTitle; }
+      if (p.has("start"))    { const s = parseInt(p.get("start"),10)||0; cfg.index = Math.min(Math.max(0,s), DASHBOARDS.length-1); }
+      save();
+    })();
+
+    // Inicializa
+    render();
+
+    // Some com o “PRONTO” (piscou 3x)
+    setTimeout(()=> {
+      const r = document.getElementById("ready");
+      r && (r.style.display = "none");
+    }, 3600);
   </script>
 </body>
 </html>
