@@ -5,67 +5,57 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Dashboards H2O - Rotação</title>
   <style>
-    :root { --bg:#000; --fg:#fff; --muted:#888; --glass:rgba(0,0,0,.5); }
+    :root { --bg:#000; --fg:#fff; --muted:#9aa0a6; --glass:rgba(0,0,0,.5); }
     *{box-sizing:border-box}
     html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
     .overlay{
       position:fixed;inset:0 auto auto 0;width:100%;padding:10px 16px;z-index:10;
       display:flex;align-items:center;justify-content:space-between;background:var(--glass);backdrop-filter:saturate(140%) blur(6px)
     }
+    .spacer{width:140px;height:40px}       /* vazio à esquerda, como tu pediu */
     .title{position:absolute;left:50%;transform:translateX(-50%);font-weight:700;letter-spacing:.3px}
-    .spacer{width:140px;height:40px}
-    .logo{height:32px;opacity:.9}
     .stage{position:fixed;inset:0}
-    iframe{
-      position:absolute;inset:0;border:0;width:100%;height:100%;
-      background:linear-gradient(180deg,#111,#000)
-    }
+    iframe{position:absolute;inset:0;border:0;width:100%;height:100%;background:linear-gradient(180deg,#111,#000)}
     .status{
       position:fixed;left:50%;top:56px;transform:translateX(-50%);
       background:var(--glass);padding:6px 10px;border-radius:8px;font-size:12px;color:var(--muted)
     }
     .hidden{display:none}
-    /* “Piscar 3x” discreto no topo ao carregar a página */
-    .flash{animation:flash 1.2s ease-in-out 1 forwards, flash 1.2s ease-in-out 2 1.4s forwards}
-    @keyframes flash{0%,100%{opacity:1} 40%,60%{opacity:.15}}
+    /* piscar 3x no título ao carregar (sinal de “pronto”) */
+    .flash3{animation:flash 0.7s ease-in-out 3}
+    @keyframes flash{0%,100%{opacity:1} 50%{opacity:.1}}
   </style>
 </head>
 <body>
   <div class="overlay">
     <div class="spacer"></div>
-    <div id="docTitle" class="title flash">Carregando…</div>
-    <div id="rightBox" class="spacer" style="display:flex;justify-content:flex-end;align-items:center;gap:10px">
-      <!-- Se quiser logo, preencha logoUrl no script que ela aparece aqui -->
-      <img id="logoImg" class="logo hidden" alt="H2O" />
-    </div>
+    <div id="docTitle" class="title flash3">Carregando…</div>
+    <div class="spacer"></div>
   </div>
 
-  <div class="stage" id="stage">
-    <!-- iframes são criados via JS -->
-  </div>
-
+  <div id="stage" class="stage"></div>
   <div id="status" class="status hidden">Carregando…</div>
 
   <script>
-    // ====== CONFIGURE AQUI ======
-    const logoUrl = ""; // opcional: ex. "images/h2o-logo.png"
-    const defaultSeconds = 60; // rotação padrão
-    // Cole aqui seus dashboards publicados (pubhtml) + títulos:
+    // ====== CONFIGURAÇÃO ======
+    const defaultSeconds = 60; // tempo padrão entre trocas
+
+    // Colei exatamente os 3 iframes que você mandou, com títulos:
     const dashboards = [
       {
-        title: "CRM – Comercial – Setembro",
-        src: "https://docs.google.com/spreadsheets/d/e/SEU_ID_AQUI/pubhtml?gid=915060596&single=true&widget=true&headers=false"
-      },
-      {
-        title: "Emini 01",
-        src: "https://docs.google.com/spreadsheets/d/e/SEU_ID_2/pubhtml?gid=0&single=true&widget=true&headers=false"
+        title: "CRM – Comercial",
+        src: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQabryl5zw9NO6AkZT4MIv3ZVzN33M4taW_VoIDRyouzS1bKUhSHjFu9hkTGIInpJdn5zXJbJiPm3OK/pubhtml?gid=915060596&single=true&widget=true&headers=false"
       },
       {
         title: "Canada 02",
-        src: "https://docs.google.com/spreadsheets/d/e/SEU_ID_3/pubhtml?gid=0&single=true&widget=true&headers=false"
+        src: "https://docs.google.com/spreadsheets/d/e/2PACX-1vR24Vx4SCLyGxtnD8X0tYOnBIZJ_Y10BYhYwaESp2Sui60TTEgC13hvPO8vKNtiMYp35L-A9LcGNmHB/pubhtml?gid=74611085&single=true&widget=true&headers=false"
+      },
+      {
+        title: "Emini 01",
+        src: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRiAUmq-3rdKt0gdiiH2U0c06Lum3hx44s5dMYLFKQLEzbnv7gCh65WkKWtu1SEwnoGRHOcTynIMnw/pubhtml?gid=915060596&single=true&widget=true&headers=false"
       }
     ];
-    // ====== FIM DA CONFIG =======
+    // ====== FIM CONFIG ======
 
     const qs = new URLSearchParams(location.search);
     const intervalMs = (parseInt(qs.get("t"),10) || defaultSeconds) * 1000;
@@ -73,8 +63,6 @@
     const stage = document.getElementById("stage");
     const titleEl = document.getElementById("docTitle");
     const statusEl = document.getElementById("status");
-    const logoEl = document.getElementById("logoImg");
-    if (logoUrl){ logoEl.src = logoUrl; logoEl.classList.remove("hidden"); }
 
     let idx = -1, timer = null, currentFrame = null;
 
@@ -96,24 +84,15 @@
       iframe.addEventListener("load", () => setStatus(""));
       iframe.addEventListener("error", () => setStatus("Erro ao carregar este dashboard."));
 
-      // troca o iframe atual
       if (currentFrame){ stage.removeChild(currentFrame); }
       stage.appendChild(iframe);
       currentFrame = iframe;
     }
 
-    function next(){
-      idx = (idx + 1) % dashboards.length;
-      loadDashboard(idx);
-    }
+    function next(){ idx = (idx + 1) % dashboards.length; loadDashboard(idx); }
+    function start(){ next(); clearInterval(timer); timer = setInterval(next, intervalMs); }
 
-    function start(){
-      next();
-      clearInterval(timer);
-      timer = setInterval(next, intervalMs);
-    }
-
-    // atalhos: espaço = pausa/retomar, setas mudam manualmente
+    // atalhos: espaço = pausa/retoma; setas = anterior/próximo
     let paused = false;
     document.addEventListener("keydown", (e) => {
       if (e.code === "Space"){ paused = !paused; paused ? clearInterval(timer) : start(); }
@@ -121,7 +100,7 @@
       if (e.code === "ArrowLeft"){ clearInterval(timer); idx = (idx - 2 + dashboards.length) % dashboards.length; next(); }
     });
 
-    if (dashboards.length){ start(); } else { titleEl.textContent = "Sem dashboards configurados"; }
+    dashboards.length ? start() : (titleEl.textContent = "Sem dashboards configurados");
   </script>
 </body>
 </html>
