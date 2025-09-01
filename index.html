@@ -14,6 +14,9 @@
     }
     .spacer{width:140px;height:40px}
     .title{position:absolute;left:50%;transform:translateX(-50%);font-weight:700;letter-spacing:.3px}
+    /* esconder o título do topo */
+    #docTitle{display:none!important;}
+
     .stage{position:fixed;inset:0}
     iframe{position:absolute;inset:0;border:0;width:100%;height:100%;background:linear-gradient(180deg,#111,#000)}
     .status{
@@ -21,15 +24,12 @@
       background:var(--glass);padding:6px 10px;border-radius:8px;font-size:12px;color:var(--muted)
     }
     .hidden{display:none}
-    /* piscar 3x no título ao carregar (sinal de “pronto”) */
-    .flash3{animation:flash 0.7s ease-in-out 3}
-    @keyframes flash{0%,100%{opacity:1} 50%{opacity:.1}}
   </style>
 </head>
 <body>
   <div class="overlay">
     <div class="spacer"></div>
-    <div id="docTitle" class="title flash3">Carregando…</div>
+    <div id="docTitle" class="title">Carregando…</div>
     <div class="spacer"></div>
   </div>
 
@@ -37,10 +37,8 @@
   <div id="status" class="status hidden">Carregando…</div>
 
   <script>
-    // ====== CONFIGURAÇÃO ======
-    const defaultSeconds = 60;                 // tempo padrão entre trocas
-    const TITLE_CELL_RANGE = "A1";             // célula que contém o nome (ex.: A1)
-    // Coloque aqui os SEUS links publicados (pubhtml):
+    // ====== CONFIG ======
+    const defaultSeconds = 60; // tempo entre trocas
     const dashboards = [
       "https://docs.google.com/spreadsheets/d/e/2PACX-1vQabryl5zw9NO6AkZT4MIv3ZVzN33M4taW_VoIDRyouzS1bKUhSHjFu9hkTGIInpJdn5zXJbJiPm3OK/pubhtml?gid=915060596&single=true&widget=true&headers=false",
       "https://docs.google.com/spreadsheets/d/e/2PACX-1vR24Vx4SCLyGxtnD8X0tYOnBIZJ_Y10BYhYwaESp2Sui60TTEgC13hvPO8vKNtiMYp35L-A9LcGNmHB/pubhtml?gid=74611085&single=true&widget=true&headers=false",
@@ -52,7 +50,6 @@
     const intervalMs = (parseInt(qs.get("t"),10) || defaultSeconds) * 1000;
 
     const stage = document.getElementById("stage");
-    const titleEl = document.getElementById("docTitle");
     const statusEl = document.getElementById("status");
 
     let idx = -1, timer = null, currentFrame = null;
@@ -62,58 +59,21 @@
       statusEl.textContent = msg; statusEl.classList.remove("hidden");
     }
 
-    // Extrai pubId (depois de /d/e/) e gid do link pubhtml
-    function parsePub(url){
-      const pub = (url.match(/\/d\/e\/([^/]+)\/pubhtml/i) || [])[1] || null;
-      const gid = (url.match(/[?&]gid=(\d+)/i) || [])[1] || null;
-      return { pub, gid };
-    }
-
-    // Busca o valor de uma célula via GViz (JSONP), mesmo cross-domain
-    function fetchCellValueFromGViz(pubId, gid, range, onDone){
-      if (!pubId || !gid){ onDone(null); return; }
-      const cb = "__gviz_cb_" + Math.random().toString(36).slice(2);
-      window[cb] = (payload) => {
-        try{
-          const cell = payload?.table?.rows?.[0]?.c?.[0];
-          onDone(cell?.v != null ? String(cell.v) : null);
-        } catch(e){
-          onDone(null);
-        } finally {
-          delete window[cb];
-          s.remove();
-        }
-      };
-      const s = document.createElement("script");
-      // range=A1 e headers=0 pra vir só a célula, sem cabeçalho
-      s.src = `https://docs.google.com/spreadsheets/d/e/${pubId}/gviz/tq?gid=${gid}&range=${encodeURIComponent(range)}&headers=0&tqx=out:json;responseHandler:${cb}`;
-      s.async = true;
-      s.onerror = () => { delete window[cb]; s.remove(); onDone(null); };
-      document.head.appendChild(s);
-    }
-
     function loadDashboard(i){
       const src = dashboards[i];
-      const { pub, gid } = parsePub(src);
-
-      titleEl.textContent = "Carregando…";
       setStatus("Carregando…");
 
-      // 1) Carrega o iframe
       const iframe = document.createElement("iframe");
       iframe.referrerPolicy = "no-referrer";
       iframe.loading = "eager";
       iframe.src = src;
+
       iframe.addEventListener("load", () => setStatus(""));
       iframe.addEventListener("error", () => setStatus("Erro ao carregar este dashboard."));
+
       if (currentFrame){ stage.removeChild(currentFrame); }
       stage.appendChild(iframe);
       currentFrame = iframe;
-
-      // 2) Busca o título na célula (ex.: A1) e coloca no topo quando chegar
-      fetchCellValueFromGViz(pub, gid, TITLE_CELL_RANGE, (val) => {
-        titleEl.textContent = val || "Dashboard";
-      });
     }
 
     function next(){ idx = (idx + 1) % dashboards.length; loadDashboard(idx); }
@@ -127,7 +87,7 @@
       if (e.code === "ArrowLeft"){ clearInterval(timer); idx = (idx - 2 + dashboards.length) % dashboards.length; next(); }
     });
 
-    dashboards.length ? start() : (titleEl.textContent = "Sem dashboards configurados");
+    dashboards.length ? start() : setStatus("Sem dashboards configurados");
   </script>
 </body>
 </html>
