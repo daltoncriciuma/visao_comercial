@@ -3,146 +3,125 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Dashboards – Rotação</title>
+  <title>Dashboards H2O - Rotação</title>
   <style>
-    :root {
-      --bg: #000; --fg: #fff; --muted: #a7b0b8;
-      --accent: #3bc1ff; --accent-2: #28e0a9;
-      --bar: rgba(255,255,255,0.15);
-      --shadow: 0 8px 30px rgba(0,0,0,.35);
-    }
-    html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);
-      font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,"Noto Sans","Helvetica Neue";}
+    :root { --bg:#000; --fg:#fff; --muted:#888; --glass:rgba(0,0,0,.5); }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
     .overlay{
-      position:fixed;inset:0 0 auto 0;height:64px;display:grid;
-      grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;
-      padding:8px 16px;background:linear-gradient(180deg,rgba(0,0,0,.65),rgba(0,0,0,.2));
-      z-index:10;backdrop-filter:blur(6px);box-shadow:var(--shadow);
+      position:fixed;inset:0 auto auto 0;width:100%;padding:10px 16px;z-index:10;
+      display:flex;align-items:center;justify-content:space-between;background:var(--glass);backdrop-filter:saturate(140%) blur(6px)
     }
-    .brand{ /* fica vazio de propósito */ }
-    .title{ text-align:center;font-weight:700;font-size:18px;letter-spacing:.3px; }
-    .meta{ display:flex;justify-content:end;align-items:center;gap:16px;font-size:14px;color:var(--muted); }
-    .meta strong{ color:var(--fg); }
-    .controls{ position:fixed;inset:auto 16px 16px auto;z-index:10;display:flex;gap:10px; }
-    .btn{ border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:var(--fg);
-      padding:8px 12px;border-radius:10px;cursor:pointer;font-size:14px;user-select:none; }
-    .btn:hover{ background:rgba(255,255,255,.12); }
-    .bar{ position:fixed;left:0;right:0;top:64px;height:4px;background:var(--bar);z-index:9; }
-    .bar>i{ display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .2s linear; }
-    .stage{ position:absolute;inset:64px 0 0 0; }
-    iframe{ position:absolute;inset:0;width:100vw;height:calc(100vh - 64px);border:0;background:#111; }
-    .badge{ position:fixed;left:16px;bottom:16px;z-index:10;font-size:12px;color:var(--muted);
-      background:rgba(0,0,0,.5);padding:6px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.1); }
+    .title{position:absolute;left:50%;transform:translateX(-50%);font-weight:700;letter-spacing:.3px}
+    .spacer{width:140px;height:40px}
+    .logo{height:32px;opacity:.9}
+    .stage{position:fixed;inset:0}
+    iframe{
+      position:absolute;inset:0;border:0;width:100%;height:100%;
+      background:linear-gradient(180deg,#111,#000)
+    }
+    .status{
+      position:fixed;left:50%;top:56px;transform:translateX(-50%);
+      background:var(--glass);padding:6px 10px;border-radius:8px;font-size:12px;color:var(--muted)
+    }
+    .hidden{display:none}
+    /* “Piscar 3x” discreto no topo ao carregar a página */
+    .flash{animation:flash 1.2s ease-in-out 1 forwards, flash 1.2s ease-in-out 2 1.4s forwards}
+    @keyframes flash{0%,100%{opacity:1} 40%,60%{opacity:.15}}
   </style>
 </head>
 <body>
   <div class="overlay">
-    <div class="brand"></div> <!-- vazio, como pedido -->
-    <div class="title" id="titleEl">Carregando…</div> <!-- aqui aparece o NOME DO DOCUMENTO -->
-    <div class="meta">
-      <div id="clock">--:--</div><div>|</div>
-      <div><strong id="pos">1</strong>/<span id="total">1</span></div>
-      <div>próximo em <strong id="eta">--</strong>s</div>
+    <div class="spacer"></div>
+    <div id="docTitle" class="title flash">Carregando…</div>
+    <div id="rightBox" class="spacer" style="display:flex;justify-content:flex-end;align-items:center;gap:10px">
+      <!-- Se quiser logo, preencha logoUrl no script que ela aparece aqui -->
+      <img id="logoImg" class="logo hidden" alt="H2O" />
     </div>
   </div>
 
-  <div class="bar"><i id="barFill"></i></div>
-
-  <div class="stage">
-    <iframe id="frame" allowfullscreen loading="eager" referrerpolicy="no-referrer-when-downgrade"></iframe>
+  <div class="stage" id="stage">
+    <!-- iframes são criados via JS -->
   </div>
 
-  <div class="controls">
-    <div class="btn" id="prev">◀︎ Anterior</div>
-    <div class="btn" id="pause">⏸ Pausar</div>
-    <div class="btn" id="next">Próximo ▶︎</div>
-  </div>
-
-  <div class="badge" id="label">—</div>
+  <div id="status" class="status hidden">Carregando…</div>
 
   <script>
-    // ====== LISTA DE DASHBOARDS (ajuste os 'name' do JEITO QUE QUER EXIBIR NO TOPO) ======
-    const DASHBOARDS = [
+    // ====== CONFIGURE AQUI ======
+    const logoUrl = ""; // opcional: ex. "images/h2o-logo.png"
+    const defaultSeconds = 60; // rotação padrão
+    // Cole aqui seus dashboards publicados (pubhtml) + títulos:
+    const dashboards = [
       {
-        name: "CRM – COMERCIAL – EMINI 02 – Dashboard",
-        url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQabryl5zw9NO6AkZT4MIv3ZVzN33M4taW_VoIDRyouzS1bKUhSHjFu9hkTGIInpJdn5zXJbJiPm3OK/pubhtml?gid=915060596&single=true&widget=true&headers=false"
+        title: "CRM – Comercial – Setembro",
+        src: "https://docs.google.com/spreadsheets/d/e/SEU_ID_AQUI/pubhtml?gid=915060596&single=true&widget=true&headers=false"
       },
-      // Exemplo:
-      // { name: "CANADA 02 – Resumo", url: "https://seu_link_de_embed" },
-      // { name: "EMINI 01 – Comercial", url: "https://seu_link_de_embed" },
-    ];
-    // ======================================================================================
-
-    const params = new URLSearchParams(location.search);
-    const INTERVAL_SEC = Math.max(5, parseInt(params.get("interval") || "60", 10) || 60);
-    const SHUFFLE = params.get("shuffle") === "1" || params.get("random") === "1";
-
-    const list = [...DASHBOARDS];
-    if (SHUFFLE) {
-      for (let i = list.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]];
+      {
+        title: "Emini 01",
+        src: "https://docs.google.com/spreadsheets/d/e/SEU_ID_2/pubhtml?gid=0&single=true&widget=true&headers=false"
+      },
+      {
+        title: "Canada 02",
+        src: "https://docs.google.com/spreadsheets/d/e/SEU_ID_3/pubhtml?gid=0&single=true&widget=true&headers=false"
       }
+    ];
+    // ====== FIM DA CONFIG =======
+
+    const qs = new URLSearchParams(location.search);
+    const intervalMs = (parseInt(qs.get("t"),10) || defaultSeconds) * 1000;
+
+    const stage = document.getElementById("stage");
+    const titleEl = document.getElementById("docTitle");
+    const statusEl = document.getElementById("status");
+    const logoEl = document.getElementById("logoImg");
+    if (logoUrl){ logoEl.src = logoUrl; logoEl.classList.remove("hidden"); }
+
+    let idx = -1, timer = null, currentFrame = null;
+
+    function setStatus(msg){
+      if (!msg){ statusEl.classList.add("hidden"); statusEl.textContent = ""; return; }
+      statusEl.textContent = msg; statusEl.classList.remove("hidden");
     }
 
-    const frame = document.getElementById("frame");
-    const posEl = document.getElementById("pos");
-    const totEl = document.getElementById("total");
-    const etaEl = document.getElementById("eta");
-    const barFill = document.getElementById("barFill");
-    const label = document.getElementById("label");
-    const btnPrev = document.getElementById("prev");
-    const btnNext = document.getElementById("next");
-    const btnPause = document.getElementById("pause");
-    const clock = document.getElementById("clock");
-    const titleEl = document.getElementById("titleEl");
+    function loadDashboard(i){
+      const d = dashboards[i];
+      titleEl.textContent = d.title || "Dashboard";
+      setStatus("Carregando…");
 
-    totEl.textContent = String(list.length);
+      const iframe = document.createElement("iframe");
+      iframe.referrerPolicy = "no-referrer";
+      iframe.loading = "eager";
+      iframe.src = d.src;
 
-    let idx = 0, paused = false, secLeft = INTERVAL_SEC, timer = null, progress = 0;
+      iframe.addEventListener("load", () => setStatus(""));
+      iframe.addEventListener("error", () => setStatus("Erro ao carregar este dashboard."));
 
-    function setClock(){
-      const now = new Date(); const pad = n => String(n).padStart(2,"0");
-      clock.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    }
-    setClock(); setInterval(setClock, 15_000);
-
-    function show(i){
-      idx = (i + list.length) % list.length;
-      const item = list[idx];
-
-      // Título central e título da aba do navegador passam a ser o NOME DO DOCUMENTO
-      titleEl.textContent = item.name || "Dashboard";
-      document.title = (item.name ? item.name + " — " : "") + "Rotação";
-
-      // badge inferior (opcional) também mostra o nome
-      label.textContent = item.name || "Dashboard";
-
-      // Pos e iframe
-      posEl.textContent = String(idx + 1);
-      frame.src = item.url;
-
-      // Reinicia contagem
-      secLeft = INTERVAL_SEC; progress = 0; barFill.style.width = "0%";
-      etaEl.textContent = String(secLeft);
+      // troca o iframe atual
+      if (currentFrame){ stage.removeChild(currentFrame); }
+      stage.appendChild(iframe);
+      currentFrame = iframe;
     }
 
-    function tick(){
-      if (paused) return;
-      secLeft = Math.max(0, secLeft - 1);
-      etaEl.textContent = String(secLeft);
-      progress = Math.min(1, (INTERVAL_SEC - secLeft) / INTERVAL_SEC);
-      barFill.style.width = (progress * 100) + "%";
-      if (secLeft === 0) next();
+    function next(){
+      idx = (idx + 1) % dashboards.length;
+      loadDashboard(idx);
     }
 
-    function next(){ show(idx + 1); }
-    function prev(){ show(idx - 1); }
+    function start(){
+      next();
+      clearInterval(timer);
+      timer = setInterval(next, intervalMs);
+    }
 
-    function start(){ clearInterval(timer); timer = setInterval(tick, 1000); }
-
-    btnNext.addEventListener("click", next);
-    btnPrev.addEventListener("click", prev);
-    btnPause.addEventListener("click", () => {
-      paused = !paused; btnPause.textContent = paused ? "▶︎ Retomar" : "⏸ Pausar";
+    // atalhos: espaço = pausa/retomar, setas mudam manualmente
+    let paused = false;
+    document.addEventListener("keydown", (e) => {
+      if (e.code === "Space"){ paused = !paused; paused ? clearInterval(timer) : start(); }
+      if (e.code === "ArrowRight"){ clearInterval(timer); next(); }
+      if (e.code === "ArrowLeft"){ clearInterval(timer); idx = (idx - 2 + dashboards.length) % dashboards.length; next(); }
     });
-    window.addEventListener("keydown",(e)=>{
+
+    if (dashboards.length){ start(); } else { titleEl.textContent = "Sem dashboards configurados"; }
+  </script>
+</body>
+</html>
