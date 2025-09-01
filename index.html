@@ -10,27 +10,6 @@
       height: 100%;
       overflow: hidden;
       background-color: #000;
-      font-family: Arial, sans-serif;
-      color: white;
-    }
-    .overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: 10;
-      width: 100%;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 20px;
-      background: rgba(0, 0, 0, 0.5);
-    }
-    .overlay img {
-      height: 40px;
-    }
-    .overlay .title {
-      font-size: 18px;
-      font-weight: bold;
     }
     iframe {
       position: absolute;
@@ -39,32 +18,18 @@
       width: 100vw;
       height: 100vh;
       border: none;
-      z-index: 1;
     }
   </style>
 </head>
 <body>
-  <div class="overlay">
-    <img src="https://laboratorioh2o.com.br/wp-content/uploads/2022/11/logo_h2o_branco.png" alt="Logo H2O">
-    <div class="title" id="dashboardTitle">Carregando...</div>
-  </div>
-
   <iframe id="dashboard" src=""></iframe>
 
   <script>
     const dashboards = [
-      {
-        url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQabryl5zw9NO6AkZT4MIv3ZVzN33M4taW_VoIDRyouzS1bKUhSHjFu9hkTGIInpJdn5zXJbJiPm3OK/pubhtml?gid=915060596&single=true&widget=true&headers=false",
-        title: "Dashboard 1 - Comercial"
-      },
-      {
-        url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSBcOpp7GjmsLt8YDkGW9QkFhJpRUVBrzVBcShDEB0jwtrrr4L4LyzdJYgmSANBqVOEWRByYHfhI-O_/pubhtml?gid=915060596&single=true&widget=true&headers=false",
-        title: "Dashboard 2 - Resultados"
-      },
-      {
-        url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRiAUmq-3rdKt0gdiiH2U0c06Lum3hx44s5dMYLFKQLEzbnv7gCh65WkKWtu1SEwnoGRHOcTynIMnw/pubhtml?gid=915060596&single=true&widget=true&headers=false",
-        title: "Dashboard 3 - Operacional"
-      }
+      "https://docs.google.com/spreadsheets/d/e/2PACX-1vQabryl5zw9NO6AkZT4MIv3ZVzN33M4taW_VoIDRyouzS1bKUhSHjFu9hkTGIInpJdn5zXJbJiPm3OK/pubhtml?gid=915060596&single=true&widget=true&headers=false",
+      "https://docs.google.com/spreadsheets/d/e/2PACX-1vSBcOpp7GjmsLt8YDkGW9QkFhJpRUVBrzVBcShDEB0jwtrrr4L4LyzdJYgmSANBqVOEWRByYHfhI-O_/pubhtml?gid=915060596&single=true&widget=true&headers=false",
+      "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRiAUmq-3rdKt0gdiiH2U0c06Lum3hx44s5dMYLFKQLEzbnv7gCh65WkKWtu1SEwnoGRHOcTynIMnw/pubhtml?gid=915060596&single=true&widget=true&headers=false",
+      "https://docs.google.com/spreadsheets/d/e/2PACX-1vR24Vx4SCLyGxtnD8X0tYOnBIZJ_Y10BYhYwaESp2Sui60TTEgC13hvPO8vKNtiMYp35L-A9LcGNmHB/pubhtml?gid=74611085&single=true&widget=true&headers=false"
     ];
 
     function shuffle(array) {
@@ -77,11 +42,9 @@
     shuffle(dashboards);
     let currentIndex = 0;
     const iframe = document.getElementById("dashboard");
-    const title = document.getElementById("dashboardTitle");
 
     function showNextDashboard() {
-      iframe.src = dashboards[currentIndex].url;
-      title.textContent = dashboards[currentIndex].title;
+      iframe.src = dashboards[currentIndex];
       currentIndex = (currentIndex + 1) % dashboards.length;
     }
 
