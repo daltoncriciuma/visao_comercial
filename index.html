@@ -10,10 +10,15 @@
     margin:0; width:100vw; height:100vh; overflow:hidden;
     background:#000; color:#fff; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
   }
-  /* Base 768×1152 (2:3), escalada para caber na tela */
-  .stage { position:fixed; inset:0; display:grid; place-items:center; }
-  .box   { width:768px; height:1152px; transform-origin:50% 50%; }
-  svg    { width:100%; height:100%; display:block; }
+
+  /* A peça fica sempre ancorada no centro da janela */
+  .box{
+    position:fixed; left:50%; top:50%;
+    width:768px; height:1152px;             /* base 2:3 */
+    transform-origin:50% 50%;
+    will-change: transform;
+  }
+  svg{ width:100%; height:100%; display:block; }
 
   /* HUD */
   .hud{
@@ -28,53 +33,43 @@
 </style>
 </head>
 <body>
-  <div class="stage">
-    <div class="box" id="box">
-      <!-- SVG COMPLETO -->
-      <svg viewBox="0 0 768 1152" aria-label="Medidor">
-        <defs>
-          <!-- Caminho do frasco (o MESMO é usado para contorno e recorte) -->
-          <path id="bottlePath"
-            d="M260 170 H508 L532 300
-               L592 1000
-               Q592 1088 384 1125
-               Q176 1088 176 1000
-               L236 300 Z"/>
-          <!-- Recorte interno do frasco -->
-          <clipPath id="clipBottle">
-            <use href="#bottlePath" />
-          </clipPath>
-          <!-- Gradiente do líquido -->
-          <linearGradient id="liq" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"  stop-color="#6bb8ff"/>
-            <stop offset="100%" stop-color="#1976d2"/>
-          </linearGradient>
-        </defs>
 
-        <!-- GRUPO DO LÍQUIDO (recortado pelo frasco) -->
-        <g clip-path="url(#clipBottle)">
-          <!-- retângulo que sobe (posição/altura alteradas via JS) -->
-          <rect id="liquid" x="0" y="1125" width="768" height="0" fill="url(#liq)"/>
-          <!-- brilho da superfície -->
-          <rect id="shine" x="0" y="1125" width="768" height="8" fill="rgba(255,255,255,.45)"/>
-        </g>
+  <!-- A peça (sempre centralizada) -->
+  <div class="box" id="box">
+    <svg viewBox="0 0 768 1152" aria-label="Medidor">
+      <defs>
+        <!-- Caminho do frasco (usado para contorno e recorte) -->
+        <path id="bottlePath"
+          d="M260 170 H508 L532 300
+             L592 1000
+             Q592 1088 384 1125
+             Q176 1088 176 1000
+             L236 300 Z"/>
+        <clipPath id="clipBottle"><use href="#bottlePath"/></clipPath>
+        <linearGradient id="liq" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="#6bb8ff"/>
+          <stop offset="100%" stop-color="#1976d2"/>
+        </linearGradient>
+      </defs>
 
-        <!-- CONTORNO DO FRASCO (sempre visível) -->
-        <use href="#bottlePath" fill="none" stroke="#cfe8ff" stroke-width="8"
-             filter="drop-shadow(0 10px 30px rgba(25,118,210,.25))"/>
+      <!-- Líquido (recortado pelo frasco) -->
+      <g clip-path="url(#clipBottle)">
+        <rect id="liquid" x="0" y="1125" width="768" height="0" fill="url(#liq)"/>
+        <rect id="shine"  x="0" y="1125" width="768" height="8" fill="rgba(255,255,255,.45)"/>
+      </g>
 
-        <!-- RÓTULOS -->
-        <!-- total no topo -->
-        <text id="labelTop" x="384" y="145"
-              text-anchor="middle" font-size="28" font-weight="800" fill="#fff">30</text>
-        <!-- percentual na linha d'água -->
-        <text id="labelPct" x="730" y="600"
-              text-anchor="end" font-size="22" font-weight="800" fill="#fff">0%</text>
-        <!-- pontos no centro do azul -->
-        <text id="labelPts" x="384" y="900"
-              text-anchor="middle" font-size="34" font-weight="800" fill="#fff">0,00</text>
-      </svg>
-    </div>
+      <!-- Contorno -->
+      <use href="#bottlePath" fill="none" stroke="#cfe8ff" stroke-width="8"
+           filter="drop-shadow(0 10px 30px rgba(25,118,210,.25))"/>
+
+      <!-- Rótulos -->
+      <text id="labelTop" x="384" y="145"
+            text-anchor="middle" font-size="28" font-weight="800" fill="#fff">30</text>
+      <text id="labelPct" x="730" y="600"
+            text-anchor="end" font-size="22" font-weight="800" fill="#fff">0%</text>
+      <text id="labelPts" x="384" y="900"
+            text-anchor="middle" font-size="34" font-weight="800" fill="#fff">0,00</text>
+    </svg>
   </div>
 
   <!-- HUD -->
@@ -88,38 +83,37 @@
 
 <script>
   /* ===== CONFIG ===== */
-  // CSV da sua planilha (gid=256356509), valor 0..1 em A1
+  // CSV (gid=256356509), valor 0..1 em A1
   const DATA_CSV_URL =
     "https://docs.google.com/spreadsheets/d/e/2PACX-1vR24Vx4SCLyGxtnD8X0tYOnBIZJ_Y10BYhYwaESp2Sui60TTEgC13hvPO8vKNtiMYp35L-A9LcGNmHB/pub?gid=256356509&output=csv";
 
   const PONTOS_MAX = 30;
-  const AUTO_RELOAD_MIN = 5;   // 0 = desliga auto-reload
-  const PERCENT_DEFAULT = 0.446; // fallback se CSV falhar
-  // Geometria útil do frasco (coordenadas do viewBox)
-  const TOP_Y = 300;   // início do "corpo" (logo abaixo do gargalo)
-  const BOT_Y = 1125;  // base interna
-  const WIDTH = 768, HEIGHT = 1152;
+  const AUTO_RELOAD_MIN = 5;     // 0 = desliga auto
+  const PERCENT_DEFAULT = 0.446; // fallback
+  const BASE_W = 768, BASE_H = 1152;
 
-  // ===== FIT-TO-SCREEN + ZOOM =====
+  // **Ajuste fino vertical** (em % da altura da janela): negativo = sobe
+  const BIAS_VH = -6; // tente -6 (sobe), -8 (sobe mais) ou 0 (centro exato)
+
+  // ===== centro + zoom =====
   let userZoom = 1.00, ZOOM_STEP = 0.08;
   function fit(){
     const vw = window.innerWidth, vh = window.innerHeight;
-    const k  = Math.min(vw/WIDTH, vh/HEIGHT) * userZoom;
-    document.getElementById('box').style.transform = `scale(${k})`;
+    const k  = Math.min(vw/BASE_W, vh/BASE_H) * userZoom;
+    const biasPx = (BIAS_VH/100) * vh; // deslocamento vertical opcional
+    // Centraliza matematicamente e aplica o deslocamento (pra cima/baixo)
+    document.getElementById('box').style.transform =
+      `translate(-50%, -50%) translateY(${biasPx}px) scale(${k})`;
     document.getElementById('zoomReset').textContent = Math.round(userZoom*100)+'%';
   }
   function zoomIn(){ userZoom = Math.min(2.5, +(userZoom+ZOOM_STEP).toFixed(2)); fit(); }
   function zoomOut(){ userZoom = Math.max(0.5, +(userZoom-ZOOM_STEP).toFixed(2)); fit(); }
   function zoomReset(){ userZoom = 1.00; fit(); }
   window.addEventListener('resize', fit);
-  ['zoomIn','zoomOut','zoomReset','reloadBtn'].forEach(id=>{
-    document.getElementById(id).onclick = ({target})=>{
-      if(id==='zoomIn') zoomIn();
-      else if(id==='zoomOut') zoomOut();
-      else if(id==='zoomReset') zoomReset();
-      else load();
-    };
-  });
+  document.getElementById('zoomIn').onclick  = zoomIn;
+  document.getElementById('zoomOut').onclick = zoomOut;
+  document.getElementById('zoomReset').onclick = zoomReset;
+  document.getElementById('reloadBtn').onclick = load;
   window.addEventListener('keydown', e=>{
     if(e.key==='+') zoomIn();
     if(e.key==='-'||e.key==='−') zoomOut();
@@ -127,7 +121,7 @@
     if(e.key.toLowerCase()==='r') load();
   });
 
-  // ===== CSV → percentual 0..1 (primeiro número; aceita vírgula) =====
+  // ===== CSV → percentual =====
   async function fetchPercent(){
     try{
       const url = DATA_CSV_URL + (DATA_CSV_URL.includes('?')?'&':'?') + 'cb=' + Date.now();
@@ -139,35 +133,32 @@
     return null;
   }
 
-  // ===== Atualiza nível e rótulos (tudo em coordenadas do viewBox) =====
+  // ===== atualiza desenho =====
+  const TOP_Y = 300, BOT_Y = 1125; // corpo do frasco
   function setLevel(p){
     p = Math.max(0, Math.min(1, p));
-
-    // posição do topo do líquido
     const yTop = BOT_Y - (BOT_Y - TOP_Y) * p;
     const h    = BOT_Y - yTop;
 
-    // move/ajusta líquido
     const liq = document.getElementById('liquid');
     const shine = document.getElementById('shine');
-    liq.setAttribute('y', yTop);
-    liq.setAttribute('height', h);
+    liq.setAttribute('y', yTop);  liq.setAttribute('height', h);
     shine.setAttribute('y', yTop);
 
-    // rótulo central = pontos atingidos (no meio do retângulo)
-    const pontos = (p * PONTOS_MAX);
-    document.getElementById('labelPts').textContent = pontos.toFixed(2).replace('.', ',');
-    document.getElementById('labelPts').setAttribute('y', yTop + h/2);
+    // pontos (centro do azul)
+    const pts = (p*PONTOS_MAX).toFixed(2).replace('.', ',');
+    const lblPts = document.getElementById('labelPts');
+    lblPts.textContent = pts;
+    lblPts.setAttribute('y', yTop + h/2);
 
-    // topo = total
+    // topo
     document.getElementById('labelTop').textContent = PONTOS_MAX;
 
-    // percentual na “linha d’água”
+    // % na linha d’água
     const pct = (p*100).toFixed(2).replace('.', ',') + '%';
-    const pctY = yTop - 10; // um pouquinho acima da água
-    const pctEl = document.getElementById('labelPct');
-    pctEl.textContent = pct;
-    pctEl.setAttribute('y', pctY);
+    const lblPct = document.getElementById('labelPct');
+    lblPct.textContent = pct;
+    lblPct.setAttribute('y', yTop - 10);
 
     // carimbo
     const n=new Date(), two=x=>String(x).padStart(2,'0');
