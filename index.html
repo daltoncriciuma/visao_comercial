@@ -6,17 +6,60 @@
 <title>Erlenmeyer – Progresso</title>
 <style>
   :root { color-scheme: dark; }
-  html, body { margin:0; height:100%; background:#000; color:#fff; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; overflow:hidden; }
+  html, body {
+    margin:0; height:100%;
+    background:#000; color:#fff;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    overflow:hidden;
+  }
+  /* centro e tela cheia no notebook */
   .stage { position:fixed; inset:0; display:grid; place-items:center; }
-  .vessel { width:min(78vw,92vh); aspect-ratio:2/3; position:relative; filter:drop-shadow(0 28px 70px rgba(25,118,210,.28)); }
+  .vessel {
+    width:min(78vw,92vh);           /* grande e responsivo */
+    aspect-ratio:2/3;               /* seu PNG ~ 2:3; ajuste se precisar */
+    position:relative;
+    filter:drop-shadow(0 28px 70px rgba(25,118,210,.28));
+    transform-origin:center;
+  }
   /* máscara PNG recortando o líquido */
-  .mask-box { position:absolute; inset:0; -webkit-mask:url("img/mask.png") center/contain no-repeat; mask:url("img/mask.png") center/contain no-repeat; }
-  .liquid { position:absolute; left:0; right:0; bottom:0; height:0%; background:linear-gradient(#6bb8ff,#1976d2); border-top:4px solid rgba(255,255,255,.55); transition:height .9s cubic-bezier(.2,.7,.2,1); }
+  .mask-box {
+    position:absolute; inset:0;
+    -webkit-mask:url("./img/mask.png") center/contain no-repeat;
+            mask:url("./img/mask.png") center/contain no-repeat;
+  }
+  /* “líquido” que sobe (altura em %) */
+  .liquid {
+    position:absolute; left:0; right:0; bottom:0;
+    height:0%;
+    background:linear-gradient(#6bb8ff,#1976d2);
+    border-top:4px solid rgba(255,255,255,.55); /* brilho da superfície */
+    transition:height .9s cubic-bezier(.2,.7,.2,1);
+  }
   /* PNG do frasco por cima */
-  .overlay { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; pointer-events:none; }
-  .label { position:absolute; top:-44px; left:50%; transform:translateX(-50%); font-weight:800; font-size:clamp(18px,2.2vmin,30px); text-shadow:0 2px 10px rgba(0,0,0,.35); white-space:nowrap; }
-  .hud { position:fixed; right:12px; bottom:12px; display:flex; gap:10px; align-items:center; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.15); padding:8px 12px; border-radius:12px; font-size:14px; backdrop-filter:blur(4px); }
-  .btn { cursor:pointer; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.08); padding:6px 10px; border-radius:8px; font-weight:600; }
+  .overlay {
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    object-fit:contain; pointer-events:none;
+  }
+  /* rótulo superior */
+  .label {
+    position:absolute; top:-44px; left:50%; transform:translateX(-50%);
+    font-weight:800; letter-spacing:.3px; opacity:.95;
+    font-size:clamp(18px,2.2vmin,30px);
+    text-shadow:0 2px 10px rgba(0,0,0,.35);
+    white-space:nowrap;
+  }
+  /* HUD discreto (zoom/recarregar) */
+  .hud {
+    position:fixed; right:12px; bottom:12px;
+    display:flex; gap:10px; align-items:center;
+    background:rgba(0,0,0,.55);
+    border:1px solid rgba(255,255,255,.15);
+    padding:8px 12px; border-radius:12px; font-size:14px;
+    backdrop-filter:blur(4px);
+  }
+  .btn { cursor:pointer; border:1px solid rgba(255,255,255,.25);
+    background:rgba(255,255,255,.08); padding:6px 10px; border-radius:8px; font-weight:600; }
   .btn:hover { background:rgba(255,255,255,.15); }
   .muted { opacity:.8 }
 </style>
@@ -25,8 +68,14 @@
   <div class="stage">
     <div class="vessel" id="vessel">
       <div class="label" id="label">0,00 / 30 (0%)</div>
-      <div class="mask-box"><div class="liquid" id="liquid"></div></div>
-      <img class="overlay" id="bottle" alt="Erlenmeyer" src="img/bottle.png" />
+
+      <!-- máscara + líquido -->
+      <div class="mask-box">
+        <div class="liquid" id="liquid"></div>
+      </div>
+
+      <!-- seu PNG do frasco por cima -->
+      <img class="overlay" id="bottle" alt="Erlenmeyer" src="./img/bottle.png" />
     </div>
   </div>
 
@@ -39,53 +88,61 @@
   </div>
 
 <script>
-  // ===== CONFIG =====
-  const BOTTLE_IMG_URL = "img/bottle.png"; // seu PNG do frasco
-  const MASK_IMG_URL   = "img/mask.png";   // silhueta branca interna
-  const PONTOS_MAX = 30;
+  /* ===== CONFIGURAÇÕES ===== */
+  // Se quiser puxar o nível da planilha, COLE aqui o link "Publish to web" da aba WEB_DATA em CSV (valor 0..1 em A1).
+  // Ex.: const DATA_CSV_URL = "https://docs.google.com/spreadsheets/.../pub?gid=XXXX&output=csv";
+  const DATA_CSV_URL = null;
 
-  // (opcional) CSV publicado da planilha com percentual 0..1 em A1
-  const DATA_CSV_URL = null; // cole aqui se quiser ler da planilha
-  const AUTO_RELOAD_MIN = 5; // 0 = desliga auto-reload
-  const PERCENT_DEFAULT = 0.44; // valor de teste local
+  const PONTOS_MAX = 30;        // total (30 pontos)
+  const AUTO_RELOAD_MIN = 5;    // recarregar CSV a cada X min (0 = desligado)
+  const PERCENT_DEFAULT = 0.44; // valor de teste (0..1) quando DATA_CSV_URL = null
 
-  // aplica imagens
-  document.getElementById("bottle").src = BOTTLE_IMG_URL;
-  const maskBox = document.querySelector(".mask-box");
-  maskBox.style.webkitMask = `url("${MASK_IMG_URL}") center/contain no-repeat`;
-  maskBox.style.mask       = `url("${MASK_IMG_URL}") center/contain no-repeat`;
-
-  // zoom
+  // Zoom para caber bonito na tela
   let userZoom = 1.12, ZOOM_STEP = 0.08;
-  function fit(){ document.getElementById("vessel").style.transform = `scale(${userZoom})`; document.getElementById("zoomReset").textContent = Math.round(userZoom*100)+"%"; }
+  function fit(){
+    document.getElementById("vessel").style.transform = `scale(${userZoom})`;
+    document.getElementById("zoomReset").textContent = Math.round(userZoom*100)+"%";
+  }
   function zoomIn(){ userZoom = Math.min(2.5, +(userZoom+ZOOM_STEP).toFixed(2)); fit(); }
   function zoomOut(){ userZoom = Math.max(0.5, +(userZoom-ZOOM_STEP).toFixed(2)); fit(); }
   function zoomReset(){ userZoom = 1.00; fit(); }
-  window.addEventListener("resize", fit);
-  document.getElementById("zoomIn").onclick=zoomIn;
-  document.getElementById("zoomOut").onclick=zoomOut;
-  document.getElementById("zoomReset").onclick=zoomReset;
-  document.getElementById("reloadBtn").onclick=load;
 
-  // define nível 0..1
+  document.getElementById("zoomIn").onclick  = zoomIn;
+  document.getElementById("zoomOut").onclick = zoomOut;
+  document.getElementById("zoomReset").onclick = zoomReset;
+  document.getElementById("reloadBtn").onclick = load;
+  window.addEventListener("resize", fit);
+  window.addEventListener("keydown", (e)=>{
+    if(e.key==="+") zoomIn();
+    if(e.key==="-"||e.key==="−") zoomOut();
+    if(e.key==="0") zoomReset();
+    if(e.key.toLowerCase()==="r") load();
+  });
+
+  // Atualiza o nível (p = 0..1)
   function setLevel(p){
     p = Math.max(0, Math.min(1, p));
-    document.getElementById("liquid").style.height = (p*100)+"%";
-    const pts = (p*PONTOS_MAX).toFixed(2).replace('.', ',');
-    const pct = (p*100).toFixed(2).replace('.', ',');
+    document.getElementById("liquid").style.height = (p*100) + "%";
+
+    const pts = (p*PONTOS_MAX).toFixed(2).replace(".", ",");
+    const pct = (p*100).toFixed(2).replace(".", ",");
     document.getElementById("label").textContent = `${pts} / ${PONTOS_MAX} (${pct}%)`;
-    const n=new Date(), two=x=>String(x).padStart(2,'0');
+
+    const n=new Date(), two=x=>String(x).padStart(2,"0");
     document.getElementById("stamp").textContent = `Atualizado: ${two(n.getHours())}:${two(n.getMinutes())}`;
   }
 
+  // Lê percentual do CSV (se configurado)
   async function fetchPercent(){
     if (!DATA_CSV_URL) return PERCENT_DEFAULT;
     try{
-      const url = DATA_CSV_URL + (DATA_CSV_URL.includes("?")?"&":"?") + "cb=" + Date.now();
+      const url = DATA_CSV_URL + (DATA_CSV_URL.includes("?") ? "&" : "?") + "cb=" + Date.now();
       const txt = await fetch(url).then(r=>r.text());
       const n = parseFloat(txt.replace(",", "."));
       if (isFinite(n)) return Math.max(0, Math.min(1, n));
-    }catch(e){ console.warn("Falha ao ler CSV:", e); }
+    }catch(e){
+      console.warn("Falha ao ler CSV publicado:", e);
+    }
     return null;
   }
 
@@ -94,15 +151,9 @@
     setLevel(p==null ? PERCENT_DEFAULT : p);
   }
 
-  // inicialização
+  // Inicializa
   fit(); load();
-  if (AUTO_RELOAD_MIN>0) setInterval(load, AUTO_RELOAD_MIN*60*1000);
-  window.addEventListener("keydown", e=>{
-    if(e.key==="+") zoomIn();
-    if(e.key==="−"||e.key==="-" ) zoomOut();
-    if(e.key==="0") zoomReset();
-    if(e.key.toLowerCase()==="r") load();
-  });
+  if (AUTO_RELOAD_MIN > 0) setInterval(load, AUTO_RELOAD_MIN*60*1000);
 </script>
 </body>
 </html>
