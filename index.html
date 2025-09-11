@@ -7,41 +7,36 @@
 <style>
   :root { color-scheme: dark; }
   html, body {
-    margin:0; height:100%;
-    background:#000; color:#fff;
+    margin:0; padding:0; width:100vw; height:100vh;
+    background:#000; color:#fff; overflow:hidden;
     font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    overflow:hidden;
   }
-  /* centro e tela cheia no notebook */
+
+  /* Área central escalada para caber (base 768x1152, proporção 2:3) */
   .stage { position:fixed; inset:0; display:grid; place-items:center; }
-  .vessel {
-    width:min(78vw,92vh);           /* grande e responsivo */
-    aspect-ratio:2/3;               /* seu PNG ~ 2:3; ajuste se precisar */
-    position:relative;
-    filter:drop-shadow(0 28px 70px rgba(25,118,210,.28));
-    transform-origin:center;
+  .box   { width:768px; height:1152px; position:relative; transform-origin:50% 50%; }
+
+  /* Camadas */
+  .mask-box, .overlay, .liquidLayer, svg.defs { position:absolute; inset:0; width:100%; height:100%; }
+  .overlay { object-fit:contain; pointer-events:none; }
+
+  /* Por padrão usamos CSS Mask com a imagem da silhueta */
+  .mask-box { 
+    -webkit-mask: url("./img/mask.png") center / contain no-repeat;
+            mask: url("./img/mask.png") center / contain no-repeat;
   }
-  /* máscara PNG recortando o líquido */
-  .mask-box {
-    position:absolute; inset:0;
-    -webkit-mask:url("./img/mask.png") center/contain no-repeat;
-            mask:url("./img/mask.png") center/contain no-repeat;
-  }
-  /* “líquido” que sobe (altura em %) */
+
+  /* Líquido (altura controlada em %) */
   .liquid {
     position:absolute; left:0; right:0; bottom:0;
     height:0%;
-    background:linear-gradient(#6bb8ff,#1976d2);
-    border-top:4px solid rgba(255,255,255,.55); /* brilho da superfície */
-    transition:height .9s cubic-bezier(.2,.7,.2,1);
+    background:linear-gradient(#6bb8ff, #1976d2);
+    border-top:4px solid rgba(255,255,255,.55);
+    transition: height .9s cubic-bezier(.2,.7,.2,1);
+    will-change: height;
   }
-  /* PNG do frasco por cima */
-  .overlay {
-    position:absolute; inset:0;
-    width:100%; height:100%;
-    object-fit:contain; pointer-events:none;
-  }
-  /* rótulo superior */
+
+  /* Rótulo/diagnóstico */
   .label {
     position:absolute; top:-44px; left:50%; transform:translateX(-50%);
     font-weight:800; letter-spacing:.3px; opacity:.95;
@@ -49,14 +44,16 @@
     text-shadow:0 2px 10px rgba(0,0,0,.35);
     white-space:nowrap;
   }
-  /* HUD discreto (zoom/recarregar) */
+  .diag {
+    position:absolute; right:10px; top:10px; opacity:.6; font-size:12px;
+    background:rgba(0,0,0,.35); padding:6px 8px; border-radius:8px;
+  }
+
+  /* HUD (zoom / recarregar) */
   .hud {
-    position:fixed; right:12px; bottom:12px;
-    display:flex; gap:10px; align-items:center;
-    background:rgba(0,0,0,.55);
-    border:1px solid rgba(255,255,255,.15);
-    padding:8px 12px; border-radius:12px; font-size:14px;
-    backdrop-filter:blur(4px);
+    position:fixed; right:12px; bottom:12px; display:flex; gap:10px; align-items:center;
+    background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.15);
+    padding:8px 12px; border-radius:12px; font-size:14px; backdrop-filter:blur(4px);
   }
   .btn { cursor:pointer; border:1px solid rgba(255,255,255,.25);
     background:rgba(255,255,255,.08); padding:6px 10px; border-radius:8px; font-weight:600; }
@@ -66,15 +63,28 @@
 </head>
 <body>
   <div class="stage">
-    <div class="vessel" id="vessel">
+    <div class="box" id="box">
       <div class="label" id="label">0,00 / 30 (0%)</div>
+      <div class="diag" id="diag">Máscara: aguardando • Garrafa: aguardando</div>
 
-      <!-- máscara + líquido -->
+      <!-- defs para fallback por SVG clipPath (fica invisível) -->
+      <svg class="defs" viewBox="0 0 768 1152" aria-hidden="true">
+        <defs>
+          <clipPath id="clip-erlen">
+            <!-- Forma interna aproximada do Erlenmeyer (ajustada pra 768x1152) -->
+            <path d="M288 180 H480 L500 300 L560 1000 
+                     Q560 1080 384 1115 Q208 1080 208 1000 
+                     L268 300 Z"/>
+          </clipPath>
+        </defs>
+      </svg>
+
+      <!-- camada do líquido (por padrão, recortada pela mask.png) -->
       <div class="mask-box">
         <div class="liquid" id="liquid"></div>
       </div>
 
-      <!-- seu PNG do frasco por cima -->
+      <!-- overlay do frasco -->
       <img class="overlay" id="bottle" alt="Erlenmeyer" src="./img/bottle.png" />
     </div>
   </div>
@@ -88,25 +98,26 @@
   </div>
 
 <script>
-  /* ===== CONFIGURAÇÕES ===== */
-
-  // Seu link veio como "pubhtml?...gid=256356509&single=true".
-  // Para leitura segura via fetch, usamos o formato CSV equivalente:
+  /* ===== CONFIG ===== */
+  // Seu link (convertido para CSV com o mesmo gid)
   const DATA_CSV_URL =
     "https://docs.google.com/spreadsheets/d/e/2PACX-1vR24Vx4SCLyGxtnD8X0tYOnBIZJ_Y10BYhYwaESp2Sui60TTEgC13hvPO8vKNtiMYp35L-A9LcGNmHB/pub?gid=256356509&output=csv";
 
-  const PONTOS_MAX = 30;        // total (30 pontos)
-  const AUTO_RELOAD_MIN = 5;    // recarregar CSV a cada X min (0 = desligado)
-  const PERCENT_DEFAULT = 0.44; // fallback (0..1) se não conseguir ler o CSV
+  const PONTOS_MAX = 30;
+  const AUTO_RELOAD_MIN = 5;    // minutos (0 = desliga)
+  const PERCENT_DEFAULT = 0.44; // fallback se CSV não for lido
 
-  // Zoom para caber bonito na tela
-  let userZoom = 1.12, ZOOM_STEP = 0.08;
+  // Fit-to-screen (base 768x1152) + zoom manual
+  const BASE_W = 768, BASE_H = 1152;
+  let userZoom = 1.00, ZOOM_STEP = 0.08;
   function fit(){
-    document.getElementById("vessel").style.transform = `scale(${userZoom})`;
-    document.getElementById("zoomReset").textContent = Math.round(userZoom*100)+"%";
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const k = Math.min(vw/BASE_W, vh/BASE_H) * userZoom;
+    document.getElementById("box").style.transform = `scale(${k})`;
+    document.getElementById("zoomReset").textContent = Math.round(userZoom*100) + "%";
   }
-  function zoomIn(){ userZoom = Math.min(2.5, +(userZoom+ZOOM_STEP).toFixed(2)); fit(); }
-  function zoomOut(){ userZoom = Math.max(0.5, +(userZoom-ZOOM_STEP).toFixed(2)); fit(); }
+  function zoomIn(){ userZoom = Math.min(2.5, +(userZoom + ZOOM_STEP).toFixed(2)); fit(); }
+  function zoomOut(){ userZoom = Math.max(0.5, +(userZoom - ZOOM_STEP).toFixed(2)); fit(); }
   function zoomReset(){ userZoom = 1.00; fit(); }
 
   document.getElementById("zoomIn").onclick  = zoomIn;
@@ -121,7 +132,7 @@
     if(e.key.toLowerCase()==="r") load();
   });
 
-  // Atualiza o nível (p = 0..1)
+  // Atualiza o nível (0..1)
   function setLevel(p){
     p = Math.max(0, Math.min(1, p));
     document.getElementById("liquid").style.height = (p*100) + "%";
@@ -134,21 +145,64 @@
     document.getElementById("stamp").textContent = `Atualizado: ${two(n.getHours())}:${two(n.getMinutes())}`;
   }
 
-  // Lê percentual do CSV (primeiro número; aceita vírgula/ponto)
+  // Lê o percentual do CSV (pega o primeiro número; aceita vírgula/ponto)
   async function fetchPercent(){
     try{
       const url = DATA_CSV_URL + (DATA_CSV_URL.includes("?") ? "&" : "?") + "cb=" + Date.now();
       const txt = await fetch(url).then(r=>r.text());
-      const n = parseFloat(txt.replace(",", "."));
+      const m = txt.match(/-?\d+([.,]\d+)?/);
+      const n = m ? parseFloat(m[0].replace(",", ".")) : NaN;
       if (isFinite(n)) return Math.max(0, Math.min(1, n));
-    }catch(e){
-      console.warn("Falha ao ler CSV publicado:", e);
-    }
+    }catch(e){ console.warn("Falha ao ler CSV:", e); }
     return null;
   }
 
+  // Fallbacks de imagem/máscara
+  function useVectorMaskFallback(){
+    // remove CSS mask e usa clipPath SVG
+    const mb = document.querySelector(".mask-box");
+    mb.style.webkitMask = "none";
+    mb.style.mask = "none";
+    document.getElementById("liquid").style.clipPath = "url(#clip-erlen)";
+    addDiagFlag("Máscara: SVG");
+  }
+  function useVectorOverlayFallback(){
+    // desenha um contorno vetorial simples por cima (se bottle.png não carregar)
+    const svg = document.createElementNS("http://www.w3.org/2000/svg","svg");
+    svg.setAttribute("viewBox","0 0 768 1152");
+    svg.setAttribute("aria-hidden","true");
+    svg.style.position="absolute"; svg.style.inset="0"; svg.style.width="100%"; svg.style.height="100%";
+    svg.innerHTML = `<path d="M260 170 H508 L532 300 L592 1000
+                      Q592 1088 384 1125 Q176 1088 176 1000
+                      L236 300 Z"
+                      fill="none" stroke="#cfe8ff" stroke-width="8" />`;
+    document.getElementById("box").appendChild(svg);
+    addDiagFlag("Garrafa: SVG");
+  }
+  function addDiagFlag(txt){
+    const d = document.getElementById("diag");
+    d.textContent = d.textContent.replace("aguardando","ok");
+    d.textContent += " • " + txt;
+  }
+
+  async function preload(src){
+    return new Promise((res)=>{ const i=new Image(); i.onload=()=>res(true); i.onerror=()=>res(false); i.src=src; });
+  }
+
+  async function checkAssets(){
+    const diag = document.getElementById("diag");
+    diag.textContent = "Máscara: carregando • Garrafa: carregando";
+
+    const maskOk   = await preload("./img/mask.png");
+    const bottleOk = await preload("./img/bottle.png");
+
+    if (!maskOk) useVectorMaskFallback(); else addDiagFlag("Máscara: PNG");
+    if (!bottleOk) useVectorOverlayFallback(); else addDiagFlag("Garrafa: PNG");
+  }
+
   async function load(){
-    const p = await fetchPercent();
+    await checkAssets();               // garante máscara/overlay
+    const p = await fetchPercent();    // busca o percentual
     setLevel(p==null ? PERCENT_DEFAULT : p);
   }
 
