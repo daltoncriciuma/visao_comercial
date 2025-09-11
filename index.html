@@ -3,92 +3,87 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>Erlenmeyer – Progresso</title>
+<title>Visão Comercial</title>
 <style>
   :root { color-scheme: dark; }
   html, body {
-    margin:0; padding:0; width:100vw; height:100vh;
-    background:#000; color:#fff; overflow:hidden;
-    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    margin:0; padding:0; width:100vw; height:100vh; overflow:hidden;
+    background:#000; color:#fff; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
   }
 
-  /* Área central escalada para caber (base 768x1152, proporção 2:3) */
+  /* Área central escalada para caber (base 768x1152 = 2:3) */
   .stage { position:fixed; inset:0; display:grid; place-items:center; }
   .box   { width:768px; height:1152px; position:relative; transform-origin:50% 50%; }
 
   /* Camadas */
-  .mask-box, .overlay, .liquidLayer, svg.defs { position:absolute; inset:0; width:100%; height:100%; }
+  .mask-box, .overlay, .liquidLayer { position:absolute; inset:0; width:100%; height:100%; }
   .overlay { object-fit:contain; pointer-events:none; }
+  .overlay[onerror] { font-size:0; } /* evita ALT aparecer se imagem falhar */
 
-  /* Por padrão usamos CSS Mask com a imagem da silhueta */
-  .mask-box { 
-    -webkit-mask: url("./img/mask.png") center / contain no-repeat;
-            mask: url("./img/mask.png") center / contain no-repeat;
+  /* Máscara PNG recorta o líquido + clip extra pra garantir não vazar */
+  .mask-box{
+    -webkit-mask:url("./img/mask.png") center / contain no-repeat;
+            mask:url("./img/mask.png") center / contain no-repeat;
   }
-
-  /* Líquido (altura controlada em %) */
-  .liquid {
+  .liquid{
     position:absolute; left:0; right:0; bottom:0;
     height:0%;
-    background:linear-gradient(#6bb8ff, #1976d2);
+    background:linear-gradient(#6bb8ff,#1976d2);
     border-top:4px solid rgba(255,255,255,.55);
-    transition: height .9s cubic-bezier(.2,.7,.2,1);
-    will-change: height;
+    transition:height .9s cubic-bezier(.2,.7,.2,1);
+    will-change:height;
+    /* CLIP extra em formato de garrafa (trapezoide) - ajuste fino se precisar */
+    clip-path: polygon(
+      30% 20%, 70% 20%, 78% 100%, 22% 100%
+    );
   }
 
-  /* Rótulo/diagnóstico */
-  .label {
-    position:absolute; top:-44px; left:50%; transform:translateX(-50%);
-    font-weight:800; letter-spacing:.3px; opacity:.95;
-    font-size:clamp(18px,2.2vmin,30px);
-    text-shadow:0 2px 10px rgba(0,0,0,.35);
-    white-space:nowrap;
+  /* Rótulos */
+  .labelInside{
+    position:absolute; left:50%; top:100%; transform:translate(-50%,-50%);
+    font-weight:800; font-size:32px; text-shadow:0 2px 10px rgba(0,0,0,.35);
   }
-  .diag {
-    position:absolute; right:10px; top:10px; opacity:.6; font-size:12px;
-    background:rgba(0,0,0,.35); padding:6px 8px; border-radius:8px;
+  .labelTop{
+    position:absolute; left:50%; top:10%; transform:translateX(-50%);
+    font-weight:800; font-size:28px; opacity:.95; text-shadow:0 2px 10px rgba(0,0,0,.35);
+  }
+  .labelSide{
+    position:absolute; right:-56px; top:50%; transform:translateY(-50%);
+    font-weight:800; font-size:22px; opacity:.95;
   }
 
-  /* HUD (zoom / recarregar) */
-  .hud {
+  /* HUD (zoom e recarregar) */
+  .hud{
     position:fixed; right:12px; bottom:12px; display:flex; gap:10px; align-items:center;
     background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.15);
     padding:8px 12px; border-radius:12px; font-size:14px; backdrop-filter:blur(4px);
   }
-  .btn { cursor:pointer; border:1px solid rgba(255,255,255,.25);
+  .btn{ cursor:pointer; border:1px solid rgba(255,255,255,.25);
     background:rgba(255,255,255,.08); padding:6px 10px; border-radius:8px; font-weight:600; }
-  .btn:hover { background:rgba(255,255,255,.15); }
-  .muted { opacity:.8 }
+  .btn:hover{ background:rgba(255,255,255,.15); }
+  .muted{ opacity:.8 }
 </style>
 </head>
 <body>
   <div class="stage">
     <div class="box" id="box">
-      <div class="label" id="label">0,00 / 30 (0%)</div>
-      <div class="diag" id="diag">Máscara: aguardando • Garrafa: aguardando</div>
+      <!-- rótulos -->
+      <div class="labelTop" id="labelTop">30</div>
+      <div class="labelInside" id="labelInside">0,00</div>
+      <div class="labelSide" id="labelSide">0%</div>
 
-      <!-- defs para fallback por SVG clipPath (fica invisível) -->
-      <svg class="defs" viewBox="0 0 768 1152" aria-hidden="true">
-        <defs>
-          <clipPath id="clip-erlen">
-            <!-- Forma interna aproximada do Erlenmeyer (ajustada pra 768x1152) -->
-            <path d="M288 180 H480 L500 300 L560 1000 
-                     Q560 1080 384 1115 Q208 1080 208 1000 
-                     L268 300 Z"/>
-          </clipPath>
-        </defs>
-      </svg>
-
-      <!-- camada do líquido (por padrão, recortada pela mask.png) -->
+      <!-- máscara + líquido -->
       <div class="mask-box">
         <div class="liquid" id="liquid"></div>
       </div>
 
-      <!-- overlay do frasco -->
-      <img class="overlay" id="bottle" alt="Erlenmeyer" src="./img/bottle.png" />
+      <!-- frasco por cima; se falhar, some (sem ALT na tela) -->
+      <img class="overlay" id="bottle" alt="" src="./img/bottle.png"
+           onerror="this.style.display='none'" />
     </div>
   </div>
 
+  <!-- HUD -->
   <div class="hud">
     <button class="btn" id="zoomOut">−</button>
     <button class="btn" id="zoomReset">100%</button>
@@ -99,116 +94,89 @@
 
 <script>
   /* ===== CONFIG ===== */
-  // Seu link (convertido para CSV com o mesmo gid)
+  // Seu link convertido para CSV (mesmo gid=256356509)
   const DATA_CSV_URL =
     "https://docs.google.com/spreadsheets/d/e/2PACX-1vR24Vx4SCLyGxtnD8X0tYOnBIZJ_Y10BYhYwaESp2Sui60TTEgC13hvPO8vKNtiMYp35L-A9LcGNmHB/pub?gid=256356509&output=csv";
 
   const PONTOS_MAX = 30;
-  const AUTO_RELOAD_MIN = 5;    // minutos (0 = desliga)
-  const PERCENT_DEFAULT = 0.44; // fallback se CSV não for lido
-
-  // Fit-to-screen (base 768x1152) + zoom manual
+  const AUTO_RELOAD_MIN = 5;      // minutos (0 = desliga)
+  const PERCENT_DEFAULT = 0.44;   // fallback se CSV falhar
   const BASE_W = 768, BASE_H = 1152;
+
+  // Fit-to-screen + zoom
   let userZoom = 1.00, ZOOM_STEP = 0.08;
   function fit(){
     const vw = window.innerWidth, vh = window.innerHeight;
     const k = Math.min(vw/BASE_W, vh/BASE_H) * userZoom;
     document.getElementById("box").style.transform = `scale(${k})`;
-    document.getElementById("zoomReset").textContent = Math.round(userZoom*100) + "%";
+    document.getElementById("zoomReset").textContent = Math.round(userZoom*100)+"%";
   }
-  function zoomIn(){ userZoom = Math.min(2.5, +(userZoom + ZOOM_STEP).toFixed(2)); fit(); }
-  function zoomOut(){ userZoom = Math.max(0.5, +(userZoom - ZOOM_STEP).toFixed(2)); fit(); }
-  function zoomReset(){ userZoom = 1.00; fit(); }
+  function zoomIn(){ userZoom=Math.min(2.5, +(userZoom+ZOOM_STEP).toFixed(2)); fit(); }
+  function zoomOut(){ userZoom=Math.max(0.5, +(userZoom-ZOOM_STEP).toFixed(2)); fit(); }
+  function zoomReset(){ userZoom=1.00; fit(); }
 
-  document.getElementById("zoomIn").onclick  = zoomIn;
-  document.getElementById("zoomOut").onclick = zoomOut;
-  document.getElementById("zoomReset").onclick = zoomReset;
-  document.getElementById("reloadBtn").onclick = load;
+  document.getElementById("zoomIn").onclick=zoomIn;
+  document.getElementById("zoomOut").onclick=zoomOut;
+  document.getElementById("zoomReset").onclick=zoomReset;
+  document.getElementById("reloadBtn").onclick=load;
   window.addEventListener("resize", fit);
-  window.addEventListener("keydown", (e)=>{
+  window.addEventListener("keydown", e=>{
     if(e.key==="+") zoomIn();
     if(e.key==="-"||e.key==="−") zoomOut();
     if(e.key==="0") zoomReset();
     if(e.key.toLowerCase()==="r") load();
   });
 
-  // Atualiza o nível (0..1)
-  function setLevel(p){
-    p = Math.max(0, Math.min(1, p));
-    document.getElementById("liquid").style.height = (p*100) + "%";
-
-    const pts = (p*PONTOS_MAX).toFixed(2).replace(".", ",");
-    const pct = (p*100).toFixed(2).replace(".", ",");
-    document.getElementById("label").textContent = `${pts} / ${PONTOS_MAX} (${pct}%)`;
-
-    const n=new Date(), two=x=>String(x).padStart(2,"0");
-    document.getElementById("stamp").textContent = `Atualizado: ${two(n.getHours())}:${two(n.getMinutes())}`;
-  }
-
-  // Lê o percentual do CSV (pega o primeiro número; aceita vírgula/ponto)
+  // Converte vírgula/ponto, pega 1º número
   async function fetchPercent(){
     try{
-      const url = DATA_CSV_URL + (DATA_CSV_URL.includes("?") ? "&" : "?") + "cb=" + Date.now();
+      const url = DATA_CSV_URL + (DATA_CSV_URL.includes("?")?"&":"?") + "cb=" + Date.now();
       const txt = await fetch(url).then(r=>r.text());
       const m = txt.match(/-?\d+([.,]\d+)?/);
       const n = m ? parseFloat(m[0].replace(",", ".")) : NaN;
       if (isFinite(n)) return Math.max(0, Math.min(1, n));
-    }catch(e){ console.warn("Falha ao ler CSV:", e); }
+    }catch(_){}
     return null;
   }
 
-  // Fallbacks de imagem/máscara
-  function useVectorMaskFallback(){
-    // remove CSS mask e usa clipPath SVG
-    const mb = document.querySelector(".mask-box");
-    mb.style.webkitMask = "none";
-    mb.style.mask = "none";
-    document.getElementById("liquid").style.clipPath = "url(#clip-erlen)";
-    addDiagFlag("Máscara: SVG");
-  }
-  function useVectorOverlayFallback(){
-    // desenha um contorno vetorial simples por cima (se bottle.png não carregar)
-    const svg = document.createElementNS("http://www.w3.org/2000/svg","svg");
-    svg.setAttribute("viewBox","0 0 768 1152");
-    svg.setAttribute("aria-hidden","true");
-    svg.style.position="absolute"; svg.style.inset="0"; svg.style.width="100%"; svg.style.height="100%";
-    svg.innerHTML = `<path d="M260 170 H508 L532 300 L592 1000
-                      Q592 1088 384 1125 Q176 1088 176 1000
-                      L236 300 Z"
-                      fill="none" stroke="#cfe8ff" stroke-width="8" />`;
-    document.getElementById("box").appendChild(svg);
-    addDiagFlag("Garrafa: SVG");
-  }
-  function addDiagFlag(txt){
-    const d = document.getElementById("diag");
-    d.textContent = d.textContent.replace("aguardando","ok");
-    d.textContent += " • " + txt;
-  }
+  // Atualiza nível e rótulos
+  function setLevel(p){
+    p = Math.max(0, Math.min(1, p));
 
-  async function preload(src){
-    return new Promise((res)=>{ const i=new Image(); i.onload=()=>res(true); i.onerror=()=>res(false); i.src=src; });
-  }
+    // Altura do líquido
+    const h = p*100; // %
+    const liquid = document.getElementById("liquid");
+    liquid.style.height = h + "%";
 
-  async function checkAssets(){
-    const diag = document.getElementById("diag");
-    diag.textContent = "Máscara: carregando • Garrafa: carregando";
+    // Rótulo central (pontos) — no centro do azul
+    const pts = (p*PONTOS_MAX);
+    const inside = document.getElementById("labelInside");
+    inside.textContent = pts.toFixed(2).replace(".", ",");
 
-    const maskOk   = await preload("./img/mask.png");
-    const bottleOk = await preload("./img/bottle.png");
+    // posição vertical: centro do líquido ⇒ top = 100% - h/2
+    inside.style.top = (100 - h/2) + "%";
 
-    if (!maskOk) useVectorMaskFallback(); else addDiagFlag("Máscara: PNG");
-    if (!bottleOk) useVectorOverlayFallback(); else addDiagFlag("Garrafa: PNG");
+    // Rótulo de topo (total = 30) — já está fixo via CSS top:10%
+
+    // Rótulo lateral (percentual), alinhado com a “linha d’água”
+    const pct = (p*100).toFixed(2).replace(".", ",");
+    const side = document.getElementById("labelSide");
+    side.textContent = pct + "%";
+    side.style.top = (100 - h) + "%"; // linha d’água
+
+    // Carimbo de atualização
+    const n=new Date(), two=x=>String(x).padStart(2,"0");
+    document.getElementById("stamp").textContent = `Atualizado: ${two(n.getHours())}:${two(n.getMinutes())}`;
   }
 
   async function load(){
-    await checkAssets();               // garante máscara/overlay
-    const p = await fetchPercent();    // busca o percentual
+    const p = await fetchPercent();
     setLevel(p==null ? PERCENT_DEFAULT : p);
   }
 
-  // Inicializa
+  // start
   fit(); load();
-  if (AUTO_RELOAD_MIN > 0) setInterval(load, AUTO_RELOAD_MIN*60*1000);
+  if (AUTO_RELOAD_MIN>0) setInterval(load, AUTO_RELOAD_MIN*60*1000);
 </script>
 </body>
 </html>
