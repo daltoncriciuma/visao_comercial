@@ -89,13 +89,15 @@
 
 <script>
   /* ===== CONFIGURAÇÕES ===== */
-  // Se quiser puxar o nível da planilha, COLE aqui o link "Publish to web" da aba WEB_DATA em CSV (valor 0..1 em A1).
-  // Ex.: const DATA_CSV_URL = "https://docs.google.com/spreadsheets/.../pub?gid=XXXX&output=csv";
-  const DATA_CSV_URL = null;
+
+  // Seu link veio como "pubhtml?...gid=256356509&single=true".
+  // Para leitura segura via fetch, usamos o formato CSV equivalente:
+  const DATA_CSV_URL =
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vR24Vx4SCLyGxtnD8X0tYOnBIZJ_Y10BYhYwaESp2Sui60TTEgC13hvPO8vKNtiMYp35L-A9LcGNmHB/pub?gid=256356509&output=csv";
 
   const PONTOS_MAX = 30;        // total (30 pontos)
   const AUTO_RELOAD_MIN = 5;    // recarregar CSV a cada X min (0 = desligado)
-  const PERCENT_DEFAULT = 0.44; // valor de teste (0..1) quando DATA_CSV_URL = null
+  const PERCENT_DEFAULT = 0.44; // fallback (0..1) se não conseguir ler o CSV
 
   // Zoom para caber bonito na tela
   let userZoom = 1.12, ZOOM_STEP = 0.08;
@@ -132,9 +134,8 @@
     document.getElementById("stamp").textContent = `Atualizado: ${two(n.getHours())}:${two(n.getMinutes())}`;
   }
 
-  // Lê percentual do CSV (se configurado)
+  // Lê percentual do CSV (primeiro número; aceita vírgula/ponto)
   async function fetchPercent(){
-    if (!DATA_CSV_URL) return PERCENT_DEFAULT;
     try{
       const url = DATA_CSV_URL + (DATA_CSV_URL.includes("?") ? "&" : "?") + "cb=" + Date.now();
       const txt = await fetch(url).then(r=>r.text());
