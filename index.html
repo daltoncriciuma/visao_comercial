@@ -6,59 +6,21 @@
 <title>Visão Comercial</title>
 <style>
   :root { color-scheme: dark; }
-  html, body { margin:0; width:100vw; height:100vh; overflow:hidden; background:#000; color:#fff;
-    font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
-
-  /* Área base 768×1152 (2:3), escalada para caber */
+  html, body {
+    margin:0; width:100vw; height:100vh; overflow:hidden;
+    background:#000; color:#fff; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  }
+  /* Base 768×1152 (2:3), escalada para caber na tela */
   .stage { position:fixed; inset:0; display:grid; place-items:center; }
-  .box   { position:relative; width:768px; height:1152px; transform-origin:50% 50%; }
+  .box   { width:768px; height:1152px; transform-origin:50% 50%; }
+  svg    { width:100%; height:100%; display:block; }
 
-  /* Camadas (ordem/z-index) */
-  .layer { position:absolute; inset:0; }
-  .layer-liquid { z-index: 2; }
-  .layer-outline{ z-index: 3; pointer-events:none; }
-  .layer-labels { z-index: 4; pointer-events:none; }
-
-  /* Máscara PNG recorta o líquido; se a imagem faltar, ainda temos o clip extra (SVG) */
-  .mask-box{
-    -webkit-mask:url("./img/mask.png") center / contain no-repeat;
-            mask:url("./img/mask.png") center / contain no-repeat;
-  }
-  .liquid{
-    position:absolute; left:0; right:0; bottom:0;
-    height:0%; /* controlado via JS */
-    background:linear-gradient(#6bb8ff,#1976d2);
-    border-top:4px solid rgba(255,255,255,.55);
-    transition:height .9s cubic-bezier(.2,.7,.2,1);
-    will-change:height;
-    /* clip extra em formato de garrafa para garantir que não ultrapasse a borda */
-    clip-path: polygon(30% 20%, 70% 20%, 78% 100%, 22% 100%);
-  }
-
-  /* Contorno do frasco (sempre visível) */
-  .outline-path{
-    fill:none; stroke:#cfe8ff; stroke-width:8; stroke-linejoin:round;
-    filter: drop-shadow(0 10px 30px rgba(25,118,210,.25));
-  }
-
-  /* Rótulos */
-  .labelTop{
-    position:absolute; left:50%; top:8%; transform:translateX(-50%);
-    font-weight:800; font-size:28px; text-shadow:0 2px 10px rgba(0,0,0,.35);
-  }
-  .labelInside{
-    position:absolute; left:50%; transform:translate(-50%,-50%);
-    font-weight:800; font-size:32px; text-shadow:0 2px 10px rgba(0,0,0,.35);
-  }
-  .labelSide{
-    position:absolute; right:-56px; transform:translateY(-50%);
-    font-weight:800; font-size:22px;
-  }
-
-  /* HUD (zoom / recarregar) */
-  .hud{ position:fixed; right:12px; bottom:12px; display:flex; gap:10px; align-items:center;
+  /* HUD */
+  .hud{
+    position:fixed; right:12px; bottom:12px; display:flex; gap:10px; align-items:center;
     background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.15);
-    padding:8px 12px; border-radius:12px; font-size:14px; backdrop-filter:blur(4px); }
+    padding:8px 12px; border-radius:12px; font-size:14px; backdrop-filter:blur(4px);
+  }
   .btn{ cursor:pointer; border:1px solid rgba(255,255,255,.25);
     background:rgba(255,255,255,.08); padding:6px 10px; border-radius:8px; font-weight:600; }
   .btn:hover{ background:rgba(255,255,255,.15); }
@@ -68,28 +30,50 @@
 <body>
   <div class="stage">
     <div class="box" id="box">
-      <!-- líquido (mascarado) -->
-      <div class="layer layer-liquid">
-        <div class="mask-box">
-          <div id="liquid" class="liquid"></div>
-        </div>
-      </div>
+      <!-- SVG COMPLETO -->
+      <svg viewBox="0 0 768 1152" aria-label="Medidor">
+        <defs>
+          <!-- Caminho do frasco (o MESMO é usado para contorno e recorte) -->
+          <path id="bottlePath"
+            d="M260 170 H508 L532 300
+               L592 1000
+               Q592 1088 384 1125
+               Q176 1088 176 1000
+               L236 300 Z"/>
+          <!-- Recorte interno do frasco -->
+          <clipPath id="clipBottle">
+            <use href="#bottlePath" />
+          </clipPath>
+          <!-- Gradiente do líquido -->
+          <linearGradient id="liq" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"  stop-color="#6bb8ff"/>
+            <stop offset="100%" stop-color="#1976d2"/>
+          </linearGradient>
+        </defs>
 
-      <!-- contorno vetorial alinhado -->
-      <svg class="layer layer-outline" viewBox="0 0 768 1152" aria-hidden="true">
-        <!-- caminho interno/externo ajustado à base 768×1152 -->
-        <path class="outline-path"
-              d="M260 170 H508 L532 300 L592 1000
-                 Q592 1088 384 1125 Q176 1088 176 1000
-                 L236 300 Z"/>
+        <!-- GRUPO DO LÍQUIDO (recortado pelo frasco) -->
+        <g clip-path="url(#clipBottle)">
+          <!-- retângulo que sobe (posição/altura alteradas via JS) -->
+          <rect id="liquid" x="0" y="1125" width="768" height="0" fill="url(#liq)"/>
+          <!-- brilho da superfície -->
+          <rect id="shine" x="0" y="1125" width="768" height="8" fill="rgba(255,255,255,.45)"/>
+        </g>
+
+        <!-- CONTORNO DO FRASCO (sempre visível) -->
+        <use href="#bottlePath" fill="none" stroke="#cfe8ff" stroke-width="8"
+             filter="drop-shadow(0 10px 30px rgba(25,118,210,.25))"/>
+
+        <!-- RÓTULOS -->
+        <!-- total no topo -->
+        <text id="labelTop" x="384" y="145"
+              text-anchor="middle" font-size="28" font-weight="800" fill="#fff">30</text>
+        <!-- percentual na linha d'água -->
+        <text id="labelPct" x="730" y="600"
+              text-anchor="end" font-size="22" font-weight="800" fill="#fff">0%</text>
+        <!-- pontos no centro do azul -->
+        <text id="labelPts" x="384" y="900"
+              text-anchor="middle" font-size="34" font-weight="800" fill="#fff">0,00</text>
       </svg>
-
-      <!-- rótulos -->
-      <div class="layer layer-labels">
-        <div class="labelTop" id="labelTop">30</div>
-        <div class="labelInside" id="labelInside">0,00</div>
-        <div class="labelSide" id="labelSide">0%</div>
-      </div>
     </div>
   </div>
 
@@ -104,31 +88,38 @@
 
 <script>
   /* ===== CONFIG ===== */
-  // seu CSV (mesmo gid=256356509)
+  // CSV da sua planilha (gid=256356509), valor 0..1 em A1
   const DATA_CSV_URL =
     "https://docs.google.com/spreadsheets/d/e/2PACX-1vR24Vx4SCLyGxtnD8X0tYOnBIZJ_Y10BYhYwaESp2Sui60TTEgC13hvPO8vKNtiMYp35L-A9LcGNmHB/pub?gid=256356509&output=csv";
 
   const PONTOS_MAX = 30;
-  const AUTO_RELOAD_MIN = 5;     // minutos (0 = desliga)
-  const PERCENT_DEFAULT = 0.446; // fallback (≈44,6%)
-  const BASE_W = 768, BASE_H = 1152;
+  const AUTO_RELOAD_MIN = 5;   // 0 = desliga auto-reload
+  const PERCENT_DEFAULT = 0.446; // fallback se CSV falhar
+  // Geometria útil do frasco (coordenadas do viewBox)
+  const TOP_Y = 300;   // início do "corpo" (logo abaixo do gargalo)
+  const BOT_Y = 1125;  // base interna
+  const WIDTH = 768, HEIGHT = 1152;
 
-  // fit-to-screen + zoom
+  // ===== FIT-TO-SCREEN + ZOOM =====
   let userZoom = 1.00, ZOOM_STEP = 0.08;
   function fit(){
     const vw = window.innerWidth, vh = window.innerHeight;
-    const k  = Math.min(vw/BASE_W, vh/BASE_H) * userZoom;
+    const k  = Math.min(vw/WIDTH, vh/HEIGHT) * userZoom;
     document.getElementById('box').style.transform = `scale(${k})`;
-    document.getElementById('zoomReset').textContent = Math.round(userZoom*100) + '%';
+    document.getElementById('zoomReset').textContent = Math.round(userZoom*100)+'%';
   }
   function zoomIn(){ userZoom = Math.min(2.5, +(userZoom+ZOOM_STEP).toFixed(2)); fit(); }
   function zoomOut(){ userZoom = Math.max(0.5, +(userZoom-ZOOM_STEP).toFixed(2)); fit(); }
   function zoomReset(){ userZoom = 1.00; fit(); }
   window.addEventListener('resize', fit);
-  document.getElementById('zoomIn').onclick  = zoomIn;
-  document.getElementById('zoomOut').onclick = zoomOut;
-  document.getElementById('zoomReset').onclick= zoomReset;
-  document.getElementById('reloadBtn').onclick= load;
+  ['zoomIn','zoomOut','zoomReset','reloadBtn'].forEach(id=>{
+    document.getElementById(id).onclick = ({target})=>{
+      if(id==='zoomIn') zoomIn();
+      else if(id==='zoomOut') zoomOut();
+      else if(id==='zoomReset') zoomReset();
+      else load();
+    };
+  });
   window.addEventListener('keydown', e=>{
     if(e.key==='+') zoomIn();
     if(e.key==='-'||e.key==='−') zoomOut();
@@ -136,7 +127,7 @@
     if(e.key.toLowerCase()==='r') load();
   });
 
-  // CSV → percentual 0..1 (primeiro número; aceita vírgula)
+  // ===== CSV → percentual 0..1 (primeiro número; aceita vírgula) =====
   async function fetchPercent(){
     try{
       const url = DATA_CSV_URL + (DATA_CSV_URL.includes('?')?'&':'?') + 'cb=' + Date.now();
@@ -148,29 +139,37 @@
     return null;
   }
 
-  // posiciona rótulos e líquido
+  // ===== Atualiza nível e rótulos (tudo em coordenadas do viewBox) =====
   function setLevel(p){
     p = Math.max(0, Math.min(1, p));
-    const h = p*100; // %
-    const liquid = document.getElementById('liquid');
-    liquid.style.height = h + '%';
 
-    // pontos no centro do azul
-    const pts = (p*PONTOS_MAX).toFixed(2).replace('.', ',');
-    const inside = document.getElementById('labelInside');
-    inside.textContent = pts;
-    inside.style.top = (100 - h/2) + '%'; // meio do líquido
+    // posição do topo do líquido
+    const yTop = BOT_Y - (BOT_Y - TOP_Y) * p;
+    const h    = BOT_Y - yTop;
 
-    // topo (total)
+    // move/ajusta líquido
+    const liq = document.getElementById('liquid');
+    const shine = document.getElementById('shine');
+    liq.setAttribute('y', yTop);
+    liq.setAttribute('height', h);
+    shine.setAttribute('y', yTop);
+
+    // rótulo central = pontos atingidos (no meio do retângulo)
+    const pontos = (p * PONTOS_MAX);
+    document.getElementById('labelPts').textContent = pontos.toFixed(2).replace('.', ',');
+    document.getElementById('labelPts').setAttribute('y', yTop + h/2);
+
+    // topo = total
     document.getElementById('labelTop').textContent = PONTOS_MAX;
 
-    // lateral (linha d’água)
+    // percentual na “linha d’água”
     const pct = (p*100).toFixed(2).replace('.', ',') + '%';
-    const side = document.getElementById('labelSide');
-    side.textContent = pct;
-    side.style.top = (100 - h) + '%';
+    const pctY = yTop - 10; // um pouquinho acima da água
+    const pctEl = document.getElementById('labelPct');
+    pctEl.textContent = pct;
+    pctEl.setAttribute('y', pctY);
 
-    // carimbo de horário
+    // carimbo
     const n=new Date(), two=x=>String(x).padStart(2,'0');
     document.getElementById('stamp').textContent =
       `Atualizado: ${two(n.getHours())}:${two(n.getMinutes())}`;
